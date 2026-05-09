@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import mesa
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 
@@ -28,26 +28,38 @@ class AgeGroup(str, Enum):
 
 @dataclass(frozen=True)
 class DiseaseParams:
-    r0:                        float  # basic reproduction number
-    incubation_period:         int    # days from exposure to infectiousness
-    infectious_period:         int    # days the agent can transmit
-    mortality_rate:            float  # base probability of death (adjusted by age)
-    asymptomatic_fraction:     float  # fraction of infected who never show symptoms
-    vaccination_effectiveness: float  # multiplicative reduction in transmission
+    r0:                        float
+    incubation_period:         float
+    infectious_period:         float
+    mortality_rate:            float
+    asymptomatic_fraction:     float
+    vaccination_effectiveness: float
 
 
 DISEASE_PRESETS: dict[str, DiseaseParams] = {
     "covid_wuhan": DiseaseParams(
-        r0=3.0, incubation_period=4.5, infectious_period=9,
-        mortality_rate=0.021, asymptomatic_fraction=0.35, vaccination_effectiveness=0.85,
+        r0=3.0, incubation_period=4.5, infectious_period=9.0,
+        mortality_rate=0.021, asymptomatic_fraction=0.35, vaccination_effectiveness=0.875,
     ),
     "hantavirus_andes": DiseaseParams(
-        r0=1.3, incubation_period=18, infectious_period=10,
-        mortality_rate=0.35, asymptomatic_fraction=0.1, vaccination_effectiveness=0.0,
+        r0=1.3, incubation_period=18.0, infectious_period=10.0,
+        mortality_rate=0.35, asymptomatic_fraction=0.01, vaccination_effectiveness=0.0,
     ),
     "h1n1_swine_flu": DiseaseParams(
-        r0=1.6, incubation_period=2, infectious_period=8,
-        mortality_rate=0.005, asymptomatic_fraction=0.33, vaccination_effectiveness=0.60,
+        r0=1.6, incubation_period=2.0, infectious_period=8.0,
+        mortality_rate=0.000045, asymptomatic_fraction=0.20, vaccination_effectiveness=0.7,
+    ),
+    "human_metapneumovirus": DiseaseParams(
+        r0=1.2, incubation_period=4.5, infectious_period=10.0,
+        mortality_rate=0.01, asymptomatic_fraction=0.40, vaccination_effectiveness=0.0,
+    ),
+    "influenza_a_h3n2": DiseaseParams(
+        r0=1.3, incubation_period=2.0, infectious_period=8.0,
+        mortality_rate=0.009, asymptomatic_fraction=0.185, vaccination_effectiveness=0.38,
+    ),
+    "spanish_flu": DiseaseParams(
+        r0=1.8, incubation_period=2.0, infectious_period=4.1,
+        mortality_rate=0.027, asymptomatic_fraction=0.057, vaccination_effectiveness=0.0,
     ),
 }
 
@@ -219,7 +231,7 @@ class DiseaseModel(mesa.Model):
         symptomatic_contact_multiplier: float = 0.3,
         seed: Optional[int] = None,
     ):
-        super().__init__(seed=seed)
+        super().__init__(rng=np.random.default_rng(seed))
         self.disease    = DISEASE_PRESETS[disease] if isinstance(disease, str) else disease
         self.population = population
         self.hospital_capacity = hospital_capacity_per_100k * population / 100_000
