@@ -38,8 +38,8 @@ class DiseaseParams:
 
 DISEASE_PRESETS: dict[str, DiseaseParams] = {
     "covid_wuhan": DiseaseParams(
-        r0=3.0, incubation_period=4.5, infectious_period=9.0,
-        mortality_rate=0.021, asymptomatic_fraction=0.35, vaccination_effectiveness=0.875,
+        r0=2.5, incubation_period=4.5, infectious_period=9.0,
+        mortality_rate=0.003, asymptomatic_fraction=0.35, vaccination_effectiveness=0.875,
     ),
     "hantavirus_andes": DiseaseParams(
         r0=1.3, incubation_period=18.0, infectious_period=10.0,
@@ -75,10 +75,10 @@ BASE_CONTACTS_PD: dict[AgeGroup, int] = {
 
 # Multiplier applied to the disease's base mortality_rate
 AGE_MORTALITY_MULTIPLIER: dict[AgeGroup, float] = {
-    AgeGroup.baby:    3,
-    AgeGroup.child:   1.5,
+    AgeGroup.baby:    0.05,
+    AgeGroup.child:   0.05,
     AgeGroup.adult:   1.0,
-    AgeGroup.elderly: 2.5,
+    AgeGroup.elderly: 12.0,
 }
 
 # Approximate real-world age distribution for seeding a generic community
