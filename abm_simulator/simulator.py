@@ -47,7 +47,7 @@ DISEASE_PRESETS: dict[str, DiseaseParams] = {
     ),
     "h1n1_swine_flu": DiseaseParams(
         r0=1.6, incubation_period=2.0, infectious_period=8.0,
-        mortality_rate=0.000045, asymptomatic_fraction=0.20, vaccination_effectiveness=0.7,
+        mortality_rate=0.00045, asymptomatic_fraction=0.20, vaccination_effectiveness=0.7,
     ),
     "human_metapneumovirus": DiseaseParams(
         r0=1.2, incubation_period=4.5, infectious_period=10.0,
