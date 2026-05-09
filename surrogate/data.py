@@ -1,0 +1,114 @@
+"""CSV → torch tensors, with input + output StandardScalers.
+
+Outputs sit on very different scales (peak_day ~ 50 vs total_cases ~ 5e5), so
+each output column gets its own scaler. We log1p the strictly-nonneg outputs
+first so the network learns over a more even-mannered target space.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import joblib
+import numpy as np
+import pandas as pd
+import torch
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
+
+from .schema import INPUT_COLS, OUTPUT_COLS
+
+# Outputs that should be log1p'd before scaling (counts, durations).
+LOG_OUTPUTS = {
+    "peak_cases",
+    "total_cases",
+    "total_deaths",
+    "days_over_hospital_capacity",
+}
+
+
+@dataclass
+class Scalers:
+    x: StandardScaler
+    y: StandardScaler
+    log_mask: np.ndarray  # bool array over OUTPUT_COLS — which were log1p'd
+
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(
+            {"x": self.x, "y": self.y, "log_mask": self.log_mask},
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> "Scalers":
+        d = joblib.load(path)
+        return cls(x=d["x"], y=d["y"], log_mask=d["log_mask"])
+
+    def transform_y(self, y_raw: np.ndarray) -> np.ndarray:
+        y = y_raw.copy().astype(float)
+        y[:, self.log_mask] = np.log1p(np.clip(y[:, self.log_mask], 0, None))
+        return self.y.transform(y)
+
+    def inverse_y(self, y_scaled: np.ndarray) -> np.ndarray:
+        y = self.y.inverse_transform(y_scaled)
+        y[:, self.log_mask] = np.expm1(y[:, self.log_mask])
+        # numerical floor for the strictly nonneg ones
+        y[:, self.log_mask] = np.clip(y[:, self.log_mask], 0, None)
+        return y
+
+
+def fit_scalers(X_raw: np.ndarray, Y_raw: np.ndarray) -> Scalers:
+    x_scaler = StandardScaler().fit(X_raw)
+    log_mask = np.array([c in LOG_OUTPUTS for c in OUTPUT_COLS], dtype=bool)
+    Y_logged = Y_raw.copy().astype(float)
+    Y_logged[:, log_mask] = np.log1p(np.clip(Y_logged[:, log_mask], 0, None))
+    y_scaler = StandardScaler().fit(Y_logged)
+    return Scalers(x=x_scaler, y=y_scaler, log_mask=log_mask)
+
+
+def load_csv(path: Path) -> tuple[np.ndarray, np.ndarray]:
+    df = pd.read_csv(path)
+    missing = [c for c in INPUT_COLS + OUTPUT_COLS if c not in df.columns]
+    if missing:
+        raise ValueError(f"CSV {path} is missing required columns: {missing}")
+    X = df[INPUT_COLS].to_numpy(dtype=np.float32)
+    Y = df[OUTPUT_COLS].to_numpy(dtype=np.float32)
+    return X, Y
+
+
+def make_loaders(
+    csv_path: Path,
+    batch_size: int = 64,
+    val_frac: float = 0.15,
+    test_frac: float = 0.15,
+    seed: int = 0,
+    scalers: Optional[Scalers] = None,
+) -> tuple[DataLoader, DataLoader, DataLoader, Scalers]:
+    X, Y = load_csv(csv_path)
+
+    X_trainval, X_test, Y_trainval, Y_test = train_test_split(
+        X, Y, test_size=test_frac, random_state=seed
+    )
+    val_size_rel = val_frac / (1.0 - test_frac)
+    X_train, X_val, Y_train, Y_val = train_test_split(
+        X_trainval, Y_trainval, test_size=val_size_rel, random_state=seed
+    )
+
+    if scalers is None:
+        scalers = fit_scalers(X_train, Y_train)
+
+    def to_loader(Xa: np.ndarray, Ya: np.ndarray, shuffle: bool) -> DataLoader:
+        Xs = scalers.x.transform(Xa).astype(np.float32)
+        Ys = scalers.transform_y(Ya).astype(np.float32)
+        ds = TensorDataset(torch.from_numpy(Xs), torch.from_numpy(Ys))
+        return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
+
+    return (
+        to_loader(X_train, Y_train, shuffle=True),
+        to_loader(X_val, Y_val, shuffle=False),
+        to_loader(X_test, Y_test, shuffle=False),
+        scalers,
+    )
