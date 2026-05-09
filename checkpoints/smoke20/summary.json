@@ -1,0 +1,13 @@
+{
+  "best_val_mse": 1.1083085536956787,
+  "best_epoch": 14,
+  "test_mse_scaled": 0.7696242928504944,
+  "test_mae_per_output": {
+    "peak_cases": 82.13986206054688,
+    "peak_day": 43.6628532409668,
+    "total_cases": 221.80023193359375,
+    "total_deaths": 125.5366439819336,
+    "days_over_hospital_capacity": 48.4453239440918,
+    "attack_rate": 0.21700751781463623
+  }
+}

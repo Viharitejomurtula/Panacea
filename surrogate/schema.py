@@ -43,7 +43,7 @@ INPUT_RANGES = {
     "mortality_rate": (0.0, 0.40),
     "asymptomatic_fraction": (0.0, 0.6),
     "vaccination_effectiveness": (0.0, 0.95),
-    "population": (10_000, 10_000),
+    "population": (5_000, 5_000),
     "initial_infected": (1, 50),
     "hospital_capacity": (10, 50),
     "intervention_day": (0, 60),

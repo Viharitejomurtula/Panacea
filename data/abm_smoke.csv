@@ -1,0 +1,4 @@
+r0,incubation_period,infectious_period,mortality_rate,asymptomatic_fraction,vaccination_effectiveness,population,initial_infected,hospital_capacity,intervention_day,mask_compliance,vaccination_rate,contact_reduction,symptomatic_contact_multiplier,peak_cases,peak_day,total_cases,total_deaths,days_over_hospital_capacity,attack_rate
+3.0,4.5,9,0.021,0.35,0.85,2000,5,50,5,0.6,0.004,0.5,0.3,34,28,253,5,152,0.1265
+3.0,4.5,9,0.021,0.35,0.85,2000,5,50,30,0.6,0.004,0.5,0.3,235,35,762,18,109,0.381
+3.0,4.5,9,0.021,0.35,0.85,2000,5,50,60,0.6,0.004,0.5,0.3,534,46,1645,38,86,0.8225

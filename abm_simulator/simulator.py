@@ -306,10 +306,10 @@ class DiseaseModel(mesa.Model):
 
     def results(self) -> dict:
         return {
-            "peak_cases":         self.peak_cases,
-            "peak_day":           self.peak_day,
-            "total_cases":        self.total_cases,
-            "total_deaths":       self.total_deaths,
-            "days_over_capacity": self.days_over_capacity,
-            "attack_rate":        self.total_cases / self.population,
+            "peak_cases":                  self.peak_cases,
+            "peak_day":                    self.peak_day,
+            "total_cases":                 self.total_cases,
+            "total_deaths":                self.total_deaths,
+            "days_over_hospital_capacity": self.days_over_capacity,
+            "attack_rate":                 self.total_cases / self.population,
         }
