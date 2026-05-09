@@ -50,16 +50,16 @@ DISEASE_PRESETS: dict[str, DiseaseParams] = {
         mortality_rate=0.00045, asymptomatic_fraction=0.20, vaccination_effectiveness=0.7,
     ),
     "human_metapneumovirus": DiseaseParams(
-        r0=1.2, incubation_period=4.5, infectious_period=10.0,
+        r0=2.5, incubation_period=4.5, infectious_period=10.0,
         mortality_rate=0.01, asymptomatic_fraction=0.40, vaccination_effectiveness=0.0,
     ),
     "influenza_a_h3n2": DiseaseParams(
-        r0=1.3, incubation_period=2.0, infectious_period=8.0,
+        r0=1.4, incubation_period=2.0, infectious_period=8.0,
         mortality_rate=0.009, asymptomatic_fraction=0.185, vaccination_effectiveness=0.38,
     ),
     "spanish_flu": DiseaseParams(
-        r0=1.8, incubation_period=2.0, infectious_period=4.1,
-        mortality_rate=0.027, asymptomatic_fraction=0.057, vaccination_effectiveness=0.0,
+        r0=2.2, incubation_period=2.0, infectious_period=7.0,
+        mortality_rate=0.027, asymptomatic_fraction=0.15, vaccination_effectiveness=0.0,
     ),
 }
 
@@ -282,8 +282,8 @@ class DiseaseModel(mesa.Model):
                 "Total Deaths":       "total_deaths",
                 "Peak Cases":         "peak_cases",
                 "Peak Day":           "peak_day",
-                "Days Over Capacity": "days_over_capacity",
-                "Attack Rate":        lambda m: m.total_cases / m.population,
+                "Days Over Hospital Capacity": "days_over_capacity",
+                "Attack Rate":                lambda m: m.total_cases / m.population,
             },
             agent_reporters={
                 "State":         "state",
