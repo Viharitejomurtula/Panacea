@@ -219,7 +219,7 @@ class DiseaseModel(mesa.Model):
         symptomatic_contact_multiplier: float = 0.3,
         seed: Optional[int] = None,
     ):
-        super().__init__(seed=seed)
+        super().__init__(rng=np.random.default_rng(seed))
         self.disease    = DISEASE_PRESETS[disease] if isinstance(disease, str) else disease
         self.population = population
         self.hospital_capacity = hospital_capacity_per_100k * population / 100_000
