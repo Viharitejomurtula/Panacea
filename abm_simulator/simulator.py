@@ -1,4 +1,5 @@
 from enum import Enum
+import random
 import mesa
 from typing import Annotated
 
