@@ -103,10 +103,11 @@ class Human(mesa.Agent):
         self.day_recovered:   int            = -1
         self.days_in_state:   int            = 0
         self.age_group:       AgeGroup       = age_group
-        self.wears_mask:      bool           = model.rng.random() < model.mask_compliance
-        self.is_vaccinated:   bool           = False   # updated daily via vaccination_rate
-        self.is_asymptomatic: bool           = False   # set when transitioning I
-        self.contacts_pd:     int            = BASE_CONTACTS_PD[age_group]
+        self.wears_mask:         bool = model.rng.random() < model.mask_compliance
+        self.is_vaccinated:      bool = False   # updated daily via vaccination_rate
+        self.is_asymptomatic:    bool = False   # set when transitioning I
+        self.is_essential_worker:bool = model.rng.random() < model.essential_worker_fraction
+        self.contacts_pd:        int  = BASE_CONTACTS_PD[age_group]
 
         # Dispatch table — no if/elif chains in step()
         self._handlers = {
@@ -137,7 +138,7 @@ class Human(mesa.Agent):
                 and self.age_group not in (AgeGroup.baby, AgeGroup.elderly)):
             contacts *= m.symptomatic_contact_multiplier
 
-        if m.day >= m.intervention_day:
+        if m.day >= m.intervention_day and not self.is_essential_worker:
             contacts *= 1.0 - m.contact_reduction
 
         return max(0.0, contacts)
@@ -229,6 +230,7 @@ class DiseaseModel(mesa.Model):
         vaccination_rate:               float = 0.004,   # daily probability per agent
         contact_reduction:              float = 0.5,
         symptomatic_contact_multiplier: float = 0.3,
+        essential_worker_fraction:      float = 0.25,
         seed: Optional[int] = None,
     ):
         super().__init__(rng=np.random.default_rng(seed))
@@ -241,6 +243,7 @@ class DiseaseModel(mesa.Model):
         self.vaccination_rate               = vaccination_rate
         self.contact_reduction              = contact_reduction
         self.symptomatic_contact_multiplier = symptomatic_contact_multiplier
+        self.essential_worker_fraction      = essential_worker_fraction
 
         # Derive per-contact transmission probability from R0
         avg_contacts = sum(BASE_CONTACTS_PD.values()) / len(BASE_CONTACTS_PD)
