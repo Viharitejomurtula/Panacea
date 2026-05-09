@@ -79,6 +79,33 @@ def load_csv(path: Path) -> tuple[np.ndarray, np.ndarray]:
     return X, Y
 
 
+def split_raw(
+    csv_path: Path,
+    val_frac: float = 0.15,
+    test_frac: float = 0.15,
+    seed: int = 0,
+) -> dict[str, np.ndarray]:
+    """Deterministic train/val/test split on raw (un-scaled) arrays.
+
+    Used by both make_loaders (for training) and evaluate (for parity plots in
+    original units). Same seed → identical split, so evaluate.py can read the
+    held-out rows the model never saw during training.
+    """
+    X, Y = load_csv(csv_path)
+    X_trainval, X_test, Y_trainval, Y_test = train_test_split(
+        X, Y, test_size=test_frac, random_state=seed
+    )
+    val_size_rel = val_frac / (1.0 - test_frac)
+    X_train, X_val, Y_train, Y_val = train_test_split(
+        X_trainval, Y_trainval, test_size=val_size_rel, random_state=seed
+    )
+    return {
+        "X_train": X_train, "Y_train": Y_train,
+        "X_val":   X_val,   "Y_val":   Y_val,
+        "X_test":  X_test,  "Y_test":  Y_test,
+    }
+
+
 def make_loaders(
     csv_path: Path,
     batch_size: int = 64,
@@ -87,18 +114,10 @@ def make_loaders(
     seed: int = 0,
     scalers: Optional[Scalers] = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, Scalers]:
-    X, Y = load_csv(csv_path)
-
-    X_trainval, X_test, Y_trainval, Y_test = train_test_split(
-        X, Y, test_size=test_frac, random_state=seed
-    )
-    val_size_rel = val_frac / (1.0 - test_frac)
-    X_train, X_val, Y_train, Y_val = train_test_split(
-        X_trainval, Y_trainval, test_size=val_size_rel, random_state=seed
-    )
+    s = split_raw(csv_path, val_frac=val_frac, test_frac=test_frac, seed=seed)
 
     if scalers is None:
-        scalers = fit_scalers(X_train, Y_train)
+        scalers = fit_scalers(s["X_train"], s["Y_train"])
 
     def to_loader(Xa: np.ndarray, Ya: np.ndarray, shuffle: bool) -> DataLoader:
         Xs = scalers.x.transform(Xa).astype(np.float32)
@@ -107,8 +126,8 @@ def make_loaders(
         return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
 
     return (
-        to_loader(X_train, Y_train, shuffle=True),
-        to_loader(X_val, Y_val, shuffle=False),
-        to_loader(X_test, Y_test, shuffle=False),
+        to_loader(s["X_train"], s["Y_train"], shuffle=True),
+        to_loader(s["X_val"],   s["Y_val"],   shuffle=False),
+        to_loader(s["X_test"],  s["Y_test"],  shuffle=False),
         scalers,
     )

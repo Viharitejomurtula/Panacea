@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+data/sweep.log
+
+# OS
+.DS_Store
+
+# Project artifacts (uncomment to exclude)
+# data/abm_runs*.csv
+# checkpoints/

@@ -119,6 +119,10 @@ def main() -> None:
     for k, v in test_mae.items():
         print(f"  {k:35s} {v:,.3f}")
 
+    # Auto-run evaluation: parity plot + per-output R^2 / RMSE / MAE
+    from .evaluate import evaluate
+    evaluate(args.out, args.csv, seed=args.seed)
+
 
 if __name__ == "__main__":
     main()
