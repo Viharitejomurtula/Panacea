@@ -38,28 +38,28 @@ class DiseaseParams:
 
 DISEASE_PRESETS: dict[str, DiseaseParams] = {
     "covid_wuhan": DiseaseParams(
-        r0=2.5, incubation_period=4.5, infectious_period=9.0,
-        mortality_rate=0.003, asymptomatic_fraction=0.35, vaccination_effectiveness=0.875,
+        r0=2.5, incubation_period=5.1, infectious_period=10.0,
+        mortality_rate=0.005, asymptomatic_fraction=0.35, vaccination_effectiveness=0.875,
     ),
     "hantavirus_andes": DiseaseParams(
         r0=1.3, incubation_period=18.0, infectious_period=10.0,
         mortality_rate=0.35, asymptomatic_fraction=0.01, vaccination_effectiveness=0.0,
     ),
     "h1n1_swine_flu": DiseaseParams(
-        r0=1.6, incubation_period=2.0, infectious_period=8.0,
-        mortality_rate=0.00045, asymptomatic_fraction=0.20, vaccination_effectiveness=0.7,
+        r0=1.6, incubation_period=2.0, infectious_period=7.0,
+        mortality_rate=0.00015, asymptomatic_fraction=0.33, vaccination_effectiveness=0.7,
     ),
     "human_metapneumovirus": DiseaseParams(
-        r0=2.5, incubation_period=4.5, infectious_period=10.0,
-        mortality_rate=0.01, asymptomatic_fraction=0.40, vaccination_effectiveness=0.0,
+        r0=2.5, incubation_period=4.5, infectious_period=8.0,
+        mortality_rate=0.004, asymptomatic_fraction=0.40, vaccination_effectiveness=0.0,
     ),
     "influenza_a_h3n2": DiseaseParams(
-        r0=1.4, incubation_period=2.0, infectious_period=8.0,
-        mortality_rate=0.009, asymptomatic_fraction=0.185, vaccination_effectiveness=0.38,
+        r0=1.4, incubation_period=2.0, infectious_period=6.0,
+        mortality_rate=0.001, asymptomatic_fraction=0.185, vaccination_effectiveness=0.38,
     ),
     "spanish_flu": DiseaseParams(
         r0=2.2, incubation_period=2.0, infectious_period=7.0,
-        mortality_rate=0.027, asymptomatic_fraction=0.15, vaccination_effectiveness=0.0,
+        mortality_rate=0.013, asymptomatic_fraction=0.15, vaccination_effectiveness=0.0,
     ),
 }
 
