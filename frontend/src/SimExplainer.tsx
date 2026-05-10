@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FC } from 'react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface Props {
   history: number[];
@@ -37,28 +38,20 @@ Simulation facts:
 
 Rules: no bullet points, no headers, scientific but accessible tone, start with "Over the course of 365 days,"`;
 
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
     generationConfig: { maxOutputTokens: 200, temperature: 0.6 },
   });
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-
-  let res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, 3000));
-    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-  }
-
-  if (!res.ok) throw new Error(`Gemini ${res.status}`);
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? 'Summary unavailable.';
+  const result = await model.generateContent(prompt);
+  return result.response.text().trim() || 'Summary unavailable.';
 }
 
 const SimExplainer: FC<Props> = ({ history, agents, total, virusLabel }) => {
   const [expanded, setExpanded] = useState(false);
   const [summary, setSummary] = useState('');
   const [loading, setLoading] = useState(false);
+  const fetchingRef = useRef(false); // prevents StrictMode double-fire
 
   const peakInfected = Math.max(...history, 0);
   const finalInfected = agents.filter((a) => a.state === 'I').length;
@@ -66,16 +59,17 @@ const SimExplainer: FC<Props> = ({ history, agents, total, virusLabel }) => {
   const finalSusceptible = agents.filter((a) => a.state === 'S').length;
 
   useEffect(() => {
-    if (!expanded || summary || loading) return;
+    if (!expanded || summary || fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     fetchSummary({ total, peakInfected, finalInfected, finalRecovered, finalSusceptible, virusLabel })
       .then(setSummary)
       .catch((err: Error) => setSummary(
         err.message.includes('429')
-          ? 'Rate limit reached — wait a moment and re-open this panel to retry.'
+          ? 'Rate limit reached — close this panel, wait 60 seconds, then re-open it to retry.'
           : 'Unable to generate summary. Check your VITE_GEMINI_API_KEY in .env.local.'
       ))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); fetchingRef.current = false; });
   }, [expanded]);
 
   if (!expanded) {
@@ -100,7 +94,7 @@ const SimExplainer: FC<Props> = ({ history, agents, total, virusLabel }) => {
         </div>
         <button
           className="explain-panel__minimize"
-          onClick={() => setExpanded(false)}
+          onClick={() => { setExpanded(false); setSummary(''); }}
           aria-label="Minimize"
         >
           −

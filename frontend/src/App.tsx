@@ -48,15 +48,23 @@ export default function App() {
     tickSimulation(pts, WORLD);
     agentsRef.current = [...pts];
     tickCountRef.current += 2;
+
+    const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
+
     setAgents(agentsRef.current);
     if (tickCountRef.current % 8 === 0) {
       const infected = (agentsRef.current as any[]).filter((a) => a.state === 'I').length;
-      const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
       setDay(currentDay);
       setHistory((prev) => {
         const next = [...prev, infected];
         return next.length > 300 ? next.slice(-300) : next;
       });
+    }
+
+    if (currentDay >= 365) {
+      setDay(365);
+      setIsRunning(false);
+      return;
     }
     rafRef.current = requestAnimationFrame(tick);
   }, []);
@@ -303,7 +311,7 @@ export default function App() {
                 virusLabel={VIRUS_OPTIONS.find((v) => v.id === virus)?.label ?? virus}
               />
             )}
-            {!isRunning && (
+            {!isRunning && day === 0 && (
               <div className="sim-overlay">
                 <button
                   type="button"
