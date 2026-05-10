@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 // @ts-ignore — JS module, no types
 import SimCanvas from "./components/SimCanvas.jsx";
 // @ts-ignore
-import { WORLD } from "./simulation/constant";
+import { WORLD, TICKS_PER_DAY } from "./simulation/constant";
 // @ts-ignore
 import { initAgents } from "./simulation/initAgents";
 // @ts-ignore
 import { tickSimulation } from "./simulation/tickSimulation";
 import InfectionGraph from "./InfectionGraph";
+import SimExplainer from "./SimExplainer";
 import "./App.css";
 import {
   DEFAULT_USER_INTERVENTION,
@@ -39,15 +40,19 @@ export default function App() {
   const rafRef = useRef<number | null>(null);
   const tickCountRef = useRef(0);
   const [history, setHistory] = useState<number[]>([12]);
+  const [day, setDay] = useState(0);
 
   const tick = useCallback(() => {
     const pts = agentsRef.current;
     tickSimulation(pts, WORLD);
+    tickSimulation(pts, WORLD);
     agentsRef.current = [...pts];
-    tickCountRef.current += 1;
+    tickCountRef.current += 2;
     setAgents(agentsRef.current);
     if (tickCountRef.current % 8 === 0) {
       const infected = (agentsRef.current as any[]).filter((a) => a.state === 'I').length;
+      const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
+      setDay(currentDay);
       setHistory((prev) => {
         const next = [...prev, infected];
         return next.length > 300 ? next.slice(-300) : next;
@@ -289,7 +294,8 @@ export default function App() {
               agents={agents}
               diseaseColor={[248, 113, 113, 220]}
             />
-            <InfectionGraph history={history} total={3000} />
+            <InfectionGraph history={history} total={3000} day={day} />
+            {day >= 365 && <SimExplainer />}
             {!isRunning && (
               <div className="sim-overlay">
                 <button

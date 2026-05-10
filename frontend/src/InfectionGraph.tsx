@@ -3,12 +3,13 @@ import type { FC } from 'react';
 interface Props {
   history: number[];
   total: number;
+  day: number;
 }
 
 const GW = 216;
 const GH = 70;
 
-const InfectionGraph: FC<Props> = ({ history, total }) => {
+const InfectionGraph: FC<Props> = ({ history, total, day }) => {
   if (history.length < 2) return null;
 
   const current = history[history.length - 1];
@@ -58,7 +59,7 @@ const InfectionGraph: FC<Props> = ({ history, total }) => {
         />
       </svg>
       <div className="infection-graph__footer">
-        <span>{current.toLocaleString()} active</span>
+        <span>Day {day}</span>
         <span>peak {peakPct}%</span>
       </div>
     </div>
