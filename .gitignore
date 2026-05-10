@@ -33,5 +33,4 @@ frontend/.vite/
 # Project artifacts (uncomment to exclude)
 # data/abm_runs*.csv
 # checkpoints/
-.vercel
 .env*.local
