@@ -1,0 +1,17 @@
+export const WORLD = { W: 1000, H: 600 };
+
+// Chandler, AZ — flat landlocked suburb with grid streets, no water features
+export const MAP_BOUNDS = {
+  lonMin: -111.95,
+  lonMax: -111.73,
+  latMin: 33.24,
+  latMax: 33.38,
+};
+
+export const INITIAL_VIEW = {
+  longitude: -111.84,
+  latitude: 33.31,
+  zoom: 12,
+  pitch: 0,
+  bearing: 0,
+};

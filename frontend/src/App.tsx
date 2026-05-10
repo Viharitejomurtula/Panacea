@@ -1,4 +1,13 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+// @ts-ignore — JS module, no types
+import SimCanvas from "./components/SimCanvas.jsx";
+// @ts-ignore
+import { WORLD } from "./simulation/constant";
+// @ts-ignore
+import { initAgents } from "./simulation/initAgents";
+// @ts-ignore
+import { tickSimulation } from "./simulation/tickSimulation";
+import InfectionGraph from "./InfectionGraph";
 import "./App.css";
 import {
   DEFAULT_USER_INTERVENTION,
@@ -24,6 +33,47 @@ export default function App() {
   const [intervention, setIntervention] = useState(() => ({
     ...DEFAULT_USER_INTERVENTION,
   }));
+
+  const [agents, setAgents] = useState(() => initAgents(3000, WORLD));
+  const agentsRef = useRef(agents);
+  const rafRef = useRef<number | null>(null);
+  const tickCountRef = useRef(0);
+  const [history, setHistory] = useState<number[]>([12]);
+
+  const tick = useCallback(() => {
+    const pts = agentsRef.current;
+    tickSimulation(pts, WORLD);
+    agentsRef.current = [...pts];
+    tickCountRef.current += 1;
+    setAgents(agentsRef.current);
+    if (tickCountRef.current % 8 === 0) {
+      const infected = (agentsRef.current as any[]).filter((a) => a.state === 'I').length;
+      setHistory((prev) => {
+        const next = [...prev, infected];
+        return next.length > 300 ? next.slice(-300) : next;
+      });
+    }
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    if (!isRunning) {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isRunning, tick]);
 
   useEffect(() => {
     if (introPhase !== "leaving") return;
@@ -167,91 +217,92 @@ export default function App() {
       <div className="app-shell">
         <header>
           <h1>Panacea</h1>
-          <p>Epidemic exploration UI (React + Vite)</p>
         </header>
 
         <main>
-        <section className="panel">
-          <h2>Controls</h2>
+          <section className="controls-panel">
+            <p className="panel-heading">Controls</p>
 
-          <fieldset className="virus-fieldset">
-            <legend className="virus-legend">Virus Selection</legend>
-            <div className="virus-grid" role="radiogroup" aria-label="Disease preset">
-              {VIRUS_OPTIONS.map(({ id, label }) => (
-                <label
-                  key={id}
-                  className={`virus-option ${virus === id ? "virus-option--selected" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="virus"
-                    value={id}
-                    checked={virus === id}
-                    onChange={() => setVirus(id)}
-                  />
-                  <span className="virus-option-label">{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="slider-fieldset">
-            <legend className="slider-legend">Your response</legend>
-            <div className="slider-stack">
-              {INTERVENTION_SLIDERS.map(
-                ({ key, label, min, max, step, format }) => (
-                  <div key={key} className="slider-row">
-                    <div className="slider-row-header">
-                      <span className="slider-label">{label}</span>
-                      <span className="slider-value">
-                        {format(intervention[key])}
-                      </span>
-                    </div>
+            <fieldset className="virus-fieldset">
+              <legend className="virus-legend">Virus</legend>
+              <div className="virus-grid" role="radiogroup" aria-label="Disease preset">
+                {VIRUS_OPTIONS.map(({ id, label }) => (
+                  <label
+                    key={id}
+                    className={`virus-option ${virus === id ? "virus-option--selected" : ""}`}
+                  >
                     <input
-                      type="range"
-                      className="slider-input"
-                      min={min}
-                      max={max}
-                      step={step}
-                      value={intervention[key]}
-                      onChange={(e) =>
-                        setSlider(key, Number(e.target.value))
-                      }
-                      aria-valuemin={min}
-                      aria-valuemax={max}
-                      aria-valuenow={intervention[key]}
+                      type="radio"
+                      name="virus"
+                      value={id}
+                      checked={virus === id}
+                      onChange={() => setVirus(id)}
                     />
-                  </div>
-                ),
-              )}
-            </div>
-            <p className="slider-fixed-param">
-              Symptomatic contact mult. fixed at{" "}
-              <strong>{FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER.toFixed(2)}</strong>{" "}
-              (model default — not adjustable).
-            </p>
-            <button
-              type="button"
-              className="btn-reset-sliders"
-              onClick={resetSliders}
-            >
-              Reset sliders to defaults
-            </button>
-          </fieldset>
+                    <span className="virus-option-label">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
-          <p className="controls-hint">
-            Preset: <code>{virus}</code> · Intervention fields match{" "}
-            <code>surrogate/schema.py</code> for future API calls.
-          </p>
-        </section>
+            <fieldset className="slider-fieldset">
+              <legend className="slider-legend">Interventions</legend>
+              <div className="slider-stack">
+                {INTERVENTION_SLIDERS.map(
+                  ({ key, label, min, max, step, format }) => (
+                    <div key={key} className="slider-row">
+                      <div className="slider-row-header">
+                        <span className="slider-label">{label}</span>
+                        <span className="slider-value">
+                          {format(intervention[key])}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        className="slider-input"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={intervention[key]}
+                        onChange={(e) =>
+                          setSlider(key, Number(e.target.value))
+                        }
+                        aria-valuemin={min}
+                        aria-valuemax={max}
+                        aria-valuenow={intervention[key]}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn-reset-sliders"
+                onClick={resetSliders}
+              >
+                Reset
+              </button>
+            </fieldset>
+          </section>
 
-        <section className="panel" style={{ minHeight: "320px" }}>
-          <h2>Visualization</h2>
-          <div className="canvas-placeholder">
-            Map / simulation canvas area — hook up next.
-          </div>
-        </section>
-      </main>
+          <section className="viz-panel">
+            <SimCanvas
+              agents={agents}
+              diseaseColor={[248, 113, 113, 220]}
+            />
+            <InfectionGraph history={history} total={3000} />
+            {!isRunning && (
+              <div className="sim-overlay">
+                <button
+                  type="button"
+                  className="sim-start-btn"
+                  onClick={() => setIsRunning(true)}
+                >
+                  Start Simulation
+                </button>
+              </div>
+            )}
+          </section>
+        </main>
       </div>
     </div>
   );

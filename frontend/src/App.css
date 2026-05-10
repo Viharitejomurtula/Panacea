@@ -513,53 +513,91 @@
 }
 
 header {
-  padding: 1rem 1.25rem;
+  padding: 0.4rem 1rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 header h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 0.9rem;
   font-weight: 600;
-}
-
-header p {
-  margin: 0.35rem 0 0;
-  font-size: 0.875rem;
-  color: var(--text-muted);
 }
 
 main {
   flex: 1;
-  padding: 1.25rem;
+  min-height: 0;
   display: grid;
-  gap: 1rem;
 }
 
 @media (min-width: 900px) {
   main {
-    grid-template-columns: minmax(260px, 380px) 1fr;
-    align-items: start;
+    grid-template-columns: 210px 1fr;
+    align-items: stretch;
   }
 }
 
-.panel {
+/* Controls sidebar */
+.controls-panel {
+  overflow-y: auto;
+  padding: 0.6rem;
+  border-right: 1px solid var(--border);
   background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.panel h2 {
-  margin: 0 0 0.75rem;
-  font-size: 0.75rem;
+.panel-heading {
+  margin: 0;
+  font-size: 0.6rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-/* 6 viruses: 3 rows × 2 columns */
+/* Visualization panel */
+.viz-panel {
+  position: relative;
+  overflow: hidden;
+  background: #060a10;
+}
+
+/* Start simulation overlay */
+.sim-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 16, 0.65);
+  backdrop-filter: blur(3px);
+  z-index: 10;
+}
+
+.sim-start-btn {
+  padding: 0.75rem 2.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(110, 168, 254, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sim-start-btn:hover {
+  background: rgba(110, 168, 254, 0.22);
+  box-shadow: 0 0 28px rgba(110, 168, 254, 0.2);
+}
+
+/* Virus selector */
 .virus-fieldset {
   margin: 0;
   padding: 0;
@@ -569,9 +607,9 @@ main {
 
 .virus-legend {
   display: block;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.3rem;
   padding: 0;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -581,8 +619,7 @@ main {
 .virus-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(3, auto);
-  gap: 0.45rem;
+  gap: 0.28rem;
 }
 
 .virus-option {
@@ -590,16 +627,14 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.6rem;
-  padding: 0.4rem 0.45rem;
+  min-height: 1.9rem;
+  padding: 0.25rem 0.3rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg);
   cursor: pointer;
   text-align: center;
-  transition:
-    border-color 0.12s ease,
-    background 0.12s ease;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 
 .virus-option:hover {
@@ -620,27 +655,16 @@ main {
 }
 
 .virus-option-label {
-  font-size: 0.72rem;
-  line-height: 1.25;
+  font-size: 0.6rem;
+  line-height: 1.2;
   font-weight: 500;
   color: var(--text);
   hyphens: auto;
 }
 
-.controls-hint {
-  margin: 0.85rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.controls-hint code {
-  font-size: 0.72rem;
-  color: var(--accent);
-}
-
+/* Sliders */
 .slider-fieldset {
-  margin: 1rem 0 0;
+  margin: 0;
   padding: 0;
   border: none;
   min-width: 0;
@@ -648,9 +672,9 @@ main {
 
 .slider-legend {
   display: block;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.3rem;
   padding: 0;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -660,7 +684,7 @@ main {
 .slider-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.4rem;
 }
 
 .slider-row-header {
@@ -668,17 +692,17 @@ main {
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5rem;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.08rem;
 }
 
 .slider-label {
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   color: var(--text);
   font-weight: 500;
 }
 
 .slider-value {
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   font-family: ui-monospace, monospace;
@@ -686,17 +710,17 @@ main {
 
 .slider-input {
   width: 100%;
-  height: 0.35rem;
+  height: 0.22rem;
   accent-color: var(--accent);
   cursor: pointer;
 }
 
 .btn-reset-sliders {
-  margin-top: 0.65rem;
+  margin-top: 0.4rem;
   width: 100%;
-  padding: 0.45rem 0.5rem;
-  font-size: 0.72rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.6rem;
+  border-radius: 5px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-muted);
@@ -708,31 +732,56 @@ main {
   color: var(--text);
 }
 
-.slider-fixed-param {
-  margin: 0.5rem 0 0;
-  padding: 0.45rem 0.5rem;
-  font-size: 0.68rem;
-  line-height: 1.35;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-
-.slider-fixed-param strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.canvas-placeholder {
-  min-height: 280px;
-  border: 1px dashed var(--border);
+/* Infection graph overlay */
+.infection-graph {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 234px;
+  background: rgba(6, 10, 16, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(248, 113, 113, 0.22);
   border-radius: 10px;
+  padding: 0.6rem 0.7rem 0.5rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.infection-graph__header {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.infection-graph__title {
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
-  padding: 1rem;
+}
+
+.infection-graph__pct {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f87171;
+  font-family: ui-monospace, monospace;
+  line-height: 1;
+}
+
+.infection-graph__svg {
+  display: block;
+  width: 100%;
+  height: 70px;
+}
+
+.infection-graph__footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.52rem;
+  color: rgba(139, 145, 156, 0.65);
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.2rem;
 }
