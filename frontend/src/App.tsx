@@ -467,7 +467,7 @@ export default function App() {
 
       <div className="app-shell">
         <header className="app-header">
-          <h1>Panacea</h1>
+          <h1 className="app-header-brand">PANACEA</h1>
           {introDone && (
             <button
               type="button"
@@ -549,26 +549,47 @@ export default function App() {
               </button>
             </fieldset>
 
-            <fieldset className="mc-fieldset">
-              <legend className="mc-legend">Forecast</legend>
-              <p className="mc-blurb">
-                {simLoading
-                  ? "Running forecast…"
-                  : predictResult
-                    ? "Forecast ready — see results below."
-                    : "Forecast runs automatically when the simulation finishes."}
-              </p>
+            <fieldset className="sim-state-legend-fieldset">
+              <legend className="sim-state-legend__legend">Agent states</legend>
+              <div
+                className="sim-state-legend"
+                aria-label="Map dot colors by disease state"
+              >
+                <div className="sim-state-legend__item">
+                  <span
+                    className="sim-state-legend__dot sim-state-legend__dot--s"
+                    aria-hidden
+                  />
+                  <span>Susceptible</span>
+                </div>
+                <div className="sim-state-legend__item">
+                  <span
+                    className="sim-state-legend__dot sim-state-legend__dot--r"
+                    aria-hidden
+                  />
+                  <span>Recovered</span>
+                </div>
+                <div className="sim-state-legend__item">
+                  <span
+                    className="sim-state-legend__dot sim-state-legend__dot--i"
+                    aria-hidden
+                  />
+                  <span>Infected</span>
+                </div>
+                <div className="sim-state-legend__item">
+                  <span
+                    className="sim-state-legend__dot sim-state-legend__dot--d"
+                    aria-hidden
+                  />
+                  <span>Dead</span>
+                </div>
+              </div>
               {simError && (
                 <p className="mc-error" role="alert">
                   {simError}
                 </p>
               )}
             </fieldset>
-
-            <p className="controls-hint">
-              Preset: <code>{virus}</code> · Surrogate inputs match{" "}
-              <code>surrogate/schema.py</code>.
-            </p>
           </section>
 
           <section className="viz-panel">
