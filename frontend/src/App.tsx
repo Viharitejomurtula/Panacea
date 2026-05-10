@@ -35,6 +35,44 @@ import { VIRUS_OPTIONS } from "./viruses";
 const MC_N_RUNS = 10_000;
 const SOBOL_BASE_N = 512;
 
+// Surrogate trains on a 30k population; the spatial sim shows 3k.
+// Scale person-count metrics by 0.1 so forecast values match the visual sim.
+const FORECAST_SCALE = 0.1;
+const SCALED_SUMMARY_KEYS = new Set([
+  "peak_cases",
+  "total_cases",
+  "total_deaths",
+]);
+
+function scaleMcResult(out: PredictMcResponse): PredictMcResponse {
+  const mc = out.monte_carlo;
+  const scaledSummary: typeof mc.summary_percentiles = {};
+  for (const [key, v] of Object.entries(mc.summary_percentiles)) {
+    if (SCALED_SUMMARY_KEYS.has(key)) {
+      scaledSummary[key] = {
+        p5: v.p5 * FORECAST_SCALE,
+        p50: v.p50 * FORECAST_SCALE,
+        p95: v.p95 * FORECAST_SCALE,
+        mean: v.mean * FORECAST_SCALE,
+      };
+    } else {
+      scaledSummary[key] = v;
+    }
+  }
+  return {
+    ...out,
+    monte_carlo: {
+      ...mc,
+      summary_percentiles: scaledSummary,
+      trajectory_percentiles: {
+        p5: mc.trajectory_percentiles.p5.map((v) => v * FORECAST_SCALE),
+        p50: mc.trajectory_percentiles.p50.map((v) => v * FORECAST_SCALE),
+        p95: mc.trajectory_percentiles.p95.map((v) => v * FORECAST_SCALE),
+      },
+    },
+  };
+}
+
 const SUMMARY_LABELS: Record<string, string> = {
   peak_cases: "Peak cases",
   peak_day: "Peak day",
@@ -101,7 +139,7 @@ export default function App() {
         setSimError("Expected Monte Carlo response");
         return;
       }
-      setPredictResult(out);
+      setPredictResult(scaleMcResult(out));
     } catch (e) {
       setPredictResult(null);
       setSimError(e instanceof Error ? e.message : String(e));
@@ -116,15 +154,20 @@ export default function App() {
   const tickCountRef = useRef(0);
   const interventionRef = useRef(intervention);
   useEffect(() => { interventionRef.current = intervention; }, [intervention]);
+  const virusRef = useRef(virus);
+  useEffect(() => { virusRef.current = virus; }, [virus]);
   const [history, setHistory] = useState<number[]>([12]);
+  const [deathHistory, setDeathHistory] = useState<number[]>([0]);
+  const [deaths, setDeaths] = useState(0);
   const [day, setDay] = useState(0);
 
   const tick = useCallback(() => {
     const pts = agentsRef.current;
     const intr = interventionRef.current;
-    tickSimulation(pts, WORLD, intr, tickCountRef.current);
+    const v = virusRef.current;
+    tickSimulation(pts, WORLD, intr, tickCountRef.current, v);
     tickCountRef.current += 1;
-    tickSimulation(pts, WORLD, intr, tickCountRef.current);
+    tickSimulation(pts, WORLD, intr, tickCountRef.current, v);
     agentsRef.current = [...pts];
     tickCountRef.current += 1;
 
@@ -133,9 +176,15 @@ export default function App() {
     setAgents(agentsRef.current);
     if (tickCountRef.current % 8 === 0) {
       const infected = (agentsRef.current as any[]).filter((a) => a.state === 'I').length;
+      const dead = (agentsRef.current as any[]).filter((a) => a.state === 'D').length;
       setDay(currentDay);
+      setDeaths(dead);
       setHistory((prev) => {
         const next = [...prev, infected];
+        return next.length > 300 ? next.slice(-300) : next;
+      });
+      setDeathHistory((prev) => {
+        const next = [...prev, dead];
         return next.length > 300 ? next.slice(-300) : next;
       });
     }
@@ -159,6 +208,8 @@ export default function App() {
     setAgents(next);
     tickCountRef.current = 0;
     setHistory([12]);
+    setDeathHistory([0]);
+    setDeaths(0);
     setDay(0);
     setIsRunning(false);
     setExplainOpen(false);
@@ -469,7 +520,13 @@ export default function App() {
               />
             </div>
             <div className="viz-panel__hud">
-              <InfectionGraph history={history} total={3000} day={day} />
+              <InfectionGraph
+                history={history}
+                deathHistory={deathHistory}
+                deaths={deaths}
+                total={3000}
+                day={day}
+              />
               {spatialSimComplete && (
                 <>
                   <button

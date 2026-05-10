@@ -58,24 +58,33 @@ What happened in the simulation:
 - A year later: ${p.finalRecovered.toLocaleString()} had been sick and recovered (${recoveredPct}%), ${p.finalInfected.toLocaleString()} were still sick, and ${p.finalSusceptible.toLocaleString()} never caught it
 ${sensitivityBlock}
 
-Write 2 to 3 short paragraphs (each 3-5 complete sentences), separated by blank lines. The whole answer should be roughly 8-12 sentences total. Make sure every sentence ends with proper punctuation and that no paragraph is cut off mid-sentence.
+Write exactly 4 to 5 complete sentences total (no more, no less), as ONE single paragraph (no blank lines, no extra paragraphs).
 
-What to cover:
-- Tell the story of how the outbreak grew, peaked, and faded over the year, including roughly when the worst point arrived and how the town recovered.
-- Explain what the numbers feel like for a regular person — how big the peak was relative to the town, who ended up sick or fine, and what it would have felt like to live through.
-- If a "most impactful choice" was provided, name it clearly and explain in plain language why that one slider mattered most and what that tells us about real-world disease control. If no choice was provided, end with one sentence inviting the reader to try the sliders.
+What to cover in those 4-5 sentences:
+- Sentence 1: How the outbreak began and started spreading.
+- Sentence 2: When it peaked and what the peak looked like (use the actual peak number and percentage).
+- Sentence 3: How it faded and the final state of the town (mention recovered count or percentage and how many never caught it).
+- Sentence 4 (and optional 5): If a "most impactful choice" was provided, name it and briefly say why that one choice mattered most. If no choice was provided, end with one sentence inviting the reader to try the sliders.
 
-Rules:
+Strict rules:
 - Absolutely no technical terms. Banned words: "Sobol", "sensitivity", "variance", "index", "surrogate", "ST", "S1", "first-order", "total-order", "Monte Carlo", "uncertainty", "parameter", "metric", "compute", "model", "agent", "simulation".
-- No bullet points, no headers, no markdown.
-- Friendly, conversational, hopeful but realistic — like explaining to a curious friend.
-- Start the first paragraph with "Over the year,".
-- Make it comprehensive — don't be terse. Use complete sentences, finish your thoughts.`;
+- No bullet points, no headers, no markdown, no lists.
+- Every sentence must be complete with proper punctuation. NEVER stop mid-thought.
+- Friendly, conversational, hopeful but realistic.
+- Start the answer with "Over the year,".
+- Stay between 4 and 5 sentences total. Do not exceed 5. Do not write fewer than 4.`;
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    generationConfig: { maxOutputTokens: 1200, temperature: 0.6 },
+    generationConfig: {
+      maxOutputTokens: 600,
+      temperature: 0.55,
+      // gemini-2.5-flash uses internal "thinking" tokens that count against
+      // the budget; raising the cap and disabling thinking ensures the visible
+      // answer isn't truncated.
+      thinkingConfig: { thinkingBudget: 0 },
+    } as any,
   });
   const result = await model.generateContent(prompt);
   return result.response.text().trim() || "Summary unavailable.";

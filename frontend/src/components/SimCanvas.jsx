@@ -49,11 +49,16 @@ export default function SimCanvas({ agents, diseaseColor }) {
     id: 'agents',
     data: agents,
     getPosition: (d) => toLngLat(d.x, d.y),
-    getRadius: (d) => (d.state === 'I' ? 7 : 5),
+    getRadius: (d) => {
+      if (d.state === 'I') return 7;
+      if (d.state === 'D') return 4;
+      return 5;
+    },
     getFillColor: (d) => {
       if (d.state === 'S') return [147, 197, 253, 200];
       if (d.state === 'I') return diseaseColor;
       if (d.state === 'R') return [74, 222, 128, 180];
+      if (d.state === 'D') return [120, 0, 0, 230];
       return [50, 60, 80, 160];
     },
     radiusUnits: 'pixels',
