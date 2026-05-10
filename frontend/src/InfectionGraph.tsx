@@ -42,6 +42,8 @@ const InfectionGraph: FC<Props> = ({
   const peak = Math.max(...history, 1);
   const peakIdx = history.indexOf(peak);
   const peakPct = ((peak / total) * 100).toFixed(1);
+  const maxDeaths = deathHistory ? Math.max(...deathHistory, 0) : 0;
+  const chartMax = Math.max(peak, maxDeaths, 1);
 
   const idx = Math.min(Math.max(selectedIdx, 0), history.length - 1);
   const selectedInfected = history[idx];
@@ -53,7 +55,7 @@ const InfectionGraph: FC<Props> = ({
     history.length === 1 ? 0 : (i / (history.length - 1)) * GW;
 
   const pts = history
-    .map((v, i) => `${x(i).toFixed(1)},${(GH - (v / peak) * GH * 0.92).toFixed(1)}`)
+    .map((v, i) => `${x(i).toFixed(1)},${(GH - (v / chartMax) * GH * 0.92).toFixed(1)}`)
     .join(' ');
 
   const deathPts =
@@ -61,13 +63,13 @@ const InfectionGraph: FC<Props> = ({
       ? deathHistory
           .map(
             (v, i) =>
-              `${x(i).toFixed(1)},${(GH - (v / peak) * GH * 0.92).toFixed(1)}`,
+              `${x(i).toFixed(1)},${(GH - (v / chartMax) * GH * 0.92).toFixed(1)}`,
           )
           .join(' ')
       : null;
 
   const guideX = x(idx);
-  const guideY = GH - (selectedInfected / peak) * GH * 0.92;
+  const guideY = GH - (selectedInfected / chartMax) * GH * 0.92;
 
   return (
     <div className="infection-graph">
