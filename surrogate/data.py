@@ -56,9 +56,12 @@ class Scalers:
 
     def inverse_y(self, y_scaled: np.ndarray) -> np.ndarray:
         y = self.y.inverse_transform(y_scaled)
-        y[:, self.log_mask] = np.expm1(y[:, self.log_mask])
-        # numerical floor for the strictly nonneg ones
-        y[:, self.log_mask] = np.clip(y[:, self.log_mask], 0, None)
+        # Clip log-space values before expm1 to:
+        #   1. avoid float overflow on extreme predictions
+        #   2. cap predictions at physically plausible counts (population is 30k,
+        #      so log1p(30k) ≈ 10.3; allow some headroom up to 13 ≈ 440k).
+        logged = np.clip(y[:, self.log_mask], -1.0, 13.0)
+        y[:, self.log_mask] = np.clip(np.expm1(logged), 0, None)
         return y
 
 
