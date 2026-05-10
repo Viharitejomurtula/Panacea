@@ -79,6 +79,10 @@ function scaleMcResult(out: PredictMcResponse): PredictMcResponse {
 // Cumulative cases at day t are estimated by integrating active infections
 // weighted to end at total_cases (each day contributes proportionally to
 // active infections that day — close enough for visualization).
+//
+// The trajectory is NOT floored here — preserves the MC's natural wave shape
+// (rise, peak, decline). Post-wave realism (sporadic cases, reinfection) comes
+// from stochastic external imports + immune waning inside scriptedTick.
 function buildPlaybackSchedule(
   trajectory: number[],
   totalCases: number,
@@ -185,7 +189,7 @@ export default function App() {
   useEffect(() => { interventionRef.current = intervention; }, [intervention]);
   const virusRef = useRef(virus);
   useEffect(() => { virusRef.current = virus; }, [virus]);
-  const [history, setHistory] = useState<number[]>([12]);
+  const [history, setHistory] = useState<number[]>([0]);
   const [deathHistory, setDeathHistory] = useState<number[]>([0]);
   const [deaths, setDeaths] = useState(0);
   const [day, setDay] = useState(0);
@@ -193,11 +197,15 @@ export default function App() {
   // Per-day schedule of cumulative target counts derived from MC result.
   // schedule[t] = {I, R, D} for day t in 3000-person scaled space.
   const playbackScheduleRef = useRef<Array<{ I: number; R: number; D: number }> | null>(null);
+  // Cap on how high stochastic imports can push the active-I count so that
+  // post-wave noise stays comfortably below the MC peak (default 80%).
+  const importCeilingRef = useRef<number>(Infinity);
 
   // Whenever predictResult changes, build a per-day schedule for the playback layer.
   useEffect(() => {
     if (!predictResult) {
       playbackScheduleRef.current = null;
+      importCeilingRef.current = Infinity;
       return;
     }
     const mc = predictResult.monte_carlo;
@@ -205,20 +213,30 @@ export default function App() {
     const totalCases = mc.summary_percentiles.total_cases?.p50 ?? 0;
     const totalDeaths = mc.summary_percentiles.total_deaths?.p50 ?? 0;
     playbackScheduleRef.current = buildPlaybackSchedule(traj, totalCases, totalDeaths);
+    // 80% of the MC peak — imports can't push us above this. Floor at 1 so
+    // there's at least some allowance even when the peak is tiny.
+    const peak = Math.max(0, ...traj);
+    importCeilingRef.current = Math.max(1, Math.floor(peak * 0.8));
   }, [predictResult]);
 
   const tick = useCallback(() => {
     const pts = agentsRef.current;
     const schedule = playbackScheduleRef.current;
+    const ceiling = importCeilingRef.current;
     const currentDayBefore = Math.floor(tickCountRef.current / TICKS_PER_DAY);
     const target = schedule
       ? schedule[Math.min(currentDayBefore, schedule.length - 1)]
       : { I: 0, R: 0, D: 0 };
-    scriptedTick(pts, WORLD, target);
+    scriptedTick(pts, WORLD, target, ceiling);
     tickCountRef.current += 1;
-    scriptedTick(pts, WORLD, schedule
-      ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
-      : { I: 0, R: 0, D: 0 });
+    scriptedTick(
+      pts,
+      WORLD,
+      schedule
+        ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
+        : { I: 0, R: 0, D: 0 },
+      ceiling,
+    );
     agentsRef.current = [...pts];
     tickCountRef.current += 1;
 
@@ -256,7 +274,7 @@ export default function App() {
     agentsRef.current = next;
     setAgents(next);
     tickCountRef.current = 0;
-    setHistory([12]);
+    setHistory([0]);
     setDeathHistory([0]);
     setDeaths(0);
     setDay(0);

@@ -129,17 +129,46 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
   return agents;
 }
 
+// Realism layers added on top of the MC playback:
+//   • WANING_RATE_PER_TICK — chance each tick a recovered agent loses immunity
+//     and goes back to S (immune waning + variant reinfection).
+//     0.002/day ≈ ~50% loss of immunity over a year.
+//   • EXTERNAL_IMPORT_PROB — chance per tick that an outsider arrives infected
+//     (travel, animal reservoir, unmasked pocket). Creates sporadic post-wave
+//     spikes WITHOUT swamping the MC wave shape.
+//     0.1/day → about 1 import every 10 days on average.
+const WANING_RATE_PER_TICK = 0.002 / TICKS_PER_DAY;
+const EXTERNAL_IMPORT_PROB = 0.1 / TICKS_PER_DAY;
+
+// COVID's 10-day infectious period scaled to ticks. Used as a default recovery
+// clock for I agents — they actually stay sick for ~10 simulated days before
+// recovering, instead of being instantly flipped by cumulative reconciliation.
+const DEFAULT_RECOVERY_TICKS = 10 * TICKS_PER_DAY;
+
 /**
- * Playback tick: agents move for visual flair, but their state counts (S/I/R/D)
- * are forced to match per-day targets pre-computed from the Monte Carlo forecast.
- * The spatial sim becomes a visualization of the surrogate's prediction.
+ * Playback tick — agents follow these rules:
+ *   1. Move (skip dead)
+ *   2. Each I agent's recovery clock advances; once reached, transition to R
+ *      (deaths handled separately via cumulative D target)
+ *   3. Random R → S immune waning
+ *   4. Random external import: outsider arrives infected (capped so curI never
+ *      exceeds `importCeiling` — keeps post-wave noise below the actual peak)
+ *   5. Cumulative D target reconciled (matches MC's predicted total deaths)
+ *   6. S → I to bring active count UP to MC target.I (never down — natural
+ *      recovery in step 2 handles the wave's downside)
+ *
+ * The wave shape comes from the MC trajectory. Imports + waning provide the
+ * post-wave realism (sporadic cases, gradual reinfection).
  *
  * @param {Array} agents
  * @param {{W:number, H:number}} world
- * @param {{I:number, R:number, D:number}} target  cumulative target counts
+ * @param {{I:number, R:number, D:number}} target
+ * @param {number} [importCeiling=Infinity]  active-I count above which imports
+ *   are skipped — typically 80% of MC peak so post-wave noise can't approach
+ *   the actual peak.
  */
-export function scriptedTick(agents, world, target) {
-  // Movement (skip dead)
+export function scriptedTick(agents, world, target, importCeiling = Infinity) {
+  // 1) Movement
   for (const p of agents) {
     if (p.state === 'D') continue;
     p.x += p.vx;
@@ -148,51 +177,71 @@ export function scriptedTick(agents, world, target) {
     if (p.y <= 0 || p.y >= world.H) { p.vy *= -1; p.y = Math.max(0, Math.min(world.H, p.y)); }
   }
 
-  // Tally current counts
-  let curS = 0, curI = 0, curR = 0, curD = 0;
+  // 2) Recovery clocks — I → R after the infectious period
   for (const p of agents) {
-    if (p.state === 'S') curS++;
-    else if (p.state === 'I') curI++;
-    else if (p.state === 'R') curR++;
-    else curD++;
+    if (p.state !== 'I') continue;
+    p.ticksInfected = (p.ticksInfected ?? 0) + 1;
+    if (p.ticksInfected >= DEFAULT_RECOVERY_TICKS) {
+      p.state = 'R';
+    }
   }
 
-  const tgtI = Math.max(0, Math.round(target.I));
-  const tgtR = Math.max(0, Math.round(target.R));
-  const tgtD = Math.max(0, Math.round(target.D));
+  // 3) Immune waning — small chance R → S each tick
+  if (WANING_RATE_PER_TICK > 0) {
+    for (const p of agents) {
+      if (p.state === 'R' && Math.random() < WANING_RATE_PER_TICK) {
+        p.state = 'S';
+        p.ticksInfected = 0;
+      }
+    }
+  }
 
-  // 1) Promote to D first (cumulative — only grows). Prefer killing existing
-  // infected over recovered (dies after being sick).
+  // 4) External imports — random outsider arrivals, capped at importCeiling so
+  // post-wave noise can't push us back near the actual peak.
+  if (EXTERNAL_IMPORT_PROB > 0 && Math.random() < EXTERNAL_IMPORT_PROB) {
+    let curI = 0;
+    for (const p of agents) if (p.state === 'I') curI++;
+    if (curI < importCeiling) {
+      const susceptibleIdxs = [];
+      for (let i = 0; i < agents.length; i++) {
+        if (agents[i].state === 'S') susceptibleIdxs.push(i);
+      }
+      if (susceptibleIdxs.length > 0) {
+        const pick = susceptibleIdxs[Math.floor(Math.random() * susceptibleIdxs.length)];
+        agents[pick].state = 'I';
+        agents[pick].ticksInfected = 0;
+      }
+    }
+  }
+
+  // 5) Cumulative D target (only grows). Prefer turning existing I → D.
+  let curD = 0, curI = 0;
+  for (const p of agents) {
+    if (p.state === 'D') curD++;
+    else if (p.state === 'I') curI++;
+  }
+  const tgtD = Math.max(0, Math.round(target.D));
   let needD = Math.max(0, tgtD - curD);
   if (needD > 0) {
     for (const p of agents) {
       if (needD <= 0) break;
       if (p.state === 'I') {
         p.state = 'D'; p.vx = 0; p.vy = 0;
-        needD--; curI--; curD++;
+        needD--; curI--;
       }
     }
     for (const p of agents) {
       if (needD <= 0) break;
       if (p.state === 'R') {
         p.state = 'D'; p.vx = 0; p.vy = 0;
-        needD--; curR--; curD++;
+        needD--;
       }
     }
   }
 
-  // 2) Promote to R (cumulative — only grows): I → R for any excess infected
-  let needR = Math.max(0, tgtR - curR);
-  if (needR > 0) {
-    for (const p of agents) {
-      if (needR <= 0) break;
-      if (p.state === 'I') {
-        p.state = 'R'; needR--; curI--; curR++;
-      }
-    }
-  }
-
-  // 3) Reconcile I to target (S → I if too few; I → R if too many)
+  // 6) S → I if active count is below the MC target. We DO NOT drop excess I —
+  // natural recovery (step 2) handles the wave's downside, and imports persist.
+  const tgtI = Math.max(0, Math.round(target.I));
   if (curI < tgtI) {
     let need = tgtI - curI;
     for (const p of agents) {
@@ -200,16 +249,7 @@ export function scriptedTick(agents, world, target) {
       if (p.state === 'S') {
         p.state = 'I';
         p.ticksInfected = 0;
-        need--; curS--; curI++;
-      }
-    }
-  } else if (curI > tgtI) {
-    let drop = curI - tgtI;
-    for (const p of agents) {
-      if (drop <= 0) break;
-      if (p.state === 'I') {
-        p.state = 'R';
-        drop--; curI--; curR++;
+        need--;
       }
     }
   }
