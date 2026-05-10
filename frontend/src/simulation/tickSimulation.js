@@ -1,9 +1,31 @@
 const CELL_SIZE = 25;
 const INFECTION_RADIUS_SQ = 22 * 22;
-const INFECTION_PROB = 0.0012;
+const BASE_INFECTION_PROB = 0.0012;
 const RECOVERY_TICKS = 480;
+const MASK_EFFECTIVENESS = 0.65;
+const TICKS_PER_DAY = 4;
 
-export function tickSimulation(agents, world) {
+export function tickSimulation(agents, world, intervention = {}, tickCount = 0) {
+  const {
+    intervention_day = 0,
+    mask_compliance = 0,
+    contact_reduction = 0,
+    vaccination_rate = 0,
+  } = intervention;
+
+  const currentDay = Math.floor(tickCount / TICKS_PER_DAY);
+  const active = currentDay >= intervention_day;
+
+  let infectionProb = BASE_INFECTION_PROB;
+  if (active) {
+    const maskMult = 1 - mask_compliance * MASK_EFFECTIVENESS * 0.5;
+    infectionProb *= maskMult * maskMult;
+    infectionProb *= (1 - contact_reduction);
+  }
+
+  // Vaccination: per-tick probability a susceptible becomes immune
+  const vaccTickProb = active ? vaccination_rate / TICKS_PER_DAY : 0;
+
   const gridW = Math.ceil(world.W / CELL_SIZE);
   const gridH = Math.ceil(world.H / CELL_SIZE);
   const grid = new Array(gridW * gridH).fill(null).map(() => []);
@@ -20,6 +42,11 @@ export function tickSimulation(agents, world) {
   }
 
   for (const p of agents) {
+    if (p.state === 'S' && vaccTickProb > 0 && Math.random() < vaccTickProb) {
+      p.state = 'R';
+      continue;
+    }
+
     if (p.state !== 'I') continue;
 
     p.ticksInfected = (p.ticksInfected ?? 0) + 1;
@@ -38,7 +65,7 @@ export function tickSimulation(agents, world) {
         for (const other of grid[ny * gridW + nx]) {
           if (other.state !== 'S') continue;
           const d2 = (p.x - other.x) ** 2 + (p.y - other.y) ** 2;
-          if (d2 < INFECTION_RADIUS_SQ && Math.random() < INFECTION_PROB) {
+          if (d2 < INFECTION_RADIUS_SQ && Math.random() < infectionProb) {
             other.state = 'I';
             other.ticksInfected = 0;
           }

@@ -114,15 +114,19 @@ export default function App() {
   const agentsRef = useRef(agents);
   const rafRef = useRef<number | null>(null);
   const tickCountRef = useRef(0);
+  const interventionRef = useRef(intervention);
+  useEffect(() => { interventionRef.current = intervention; }, [intervention]);
   const [history, setHistory] = useState<number[]>([12]);
   const [day, setDay] = useState(0);
 
   const tick = useCallback(() => {
     const pts = agentsRef.current;
-    tickSimulation(pts, WORLD);
-    tickSimulation(pts, WORLD);
+    const intr = interventionRef.current;
+    tickSimulation(pts, WORLD, intr, tickCountRef.current);
+    tickCountRef.current += 1;
+    tickSimulation(pts, WORLD, intr, tickCountRef.current);
     agentsRef.current = [...pts];
-    tickCountRef.current += 2;
+    tickCountRef.current += 1;
 
     const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
 
