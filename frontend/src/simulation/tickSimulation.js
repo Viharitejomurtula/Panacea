@@ -130,26 +130,16 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
 }
 
 /**
- * Playback tick — hybrid model:
- *   1. Each infected agent has its own recovery clock (ticksInfected). When the
- *      clock reaches `recoveryTicks` (= infectious_period × ticks/day), the agent
- *      transitions to R or D based on `effectiveMortality` (rolled per-agent).
- *   2. The active-infected COUNT is matched to the MC trajectory by promoting
- *      S → I as needed each tick.
- *
- * This means agents actually stay sick for the full infectious period (visually
- * lingering in the I state), rather than being instantly flipped to R when the
- * cumulative target says so. Cumulative R and D emerge naturally from the
- * recovery process and end up matching the MC totals on average.
+ * Playback tick: agents move for visual flair, but their state counts (S/I/R/D)
+ * are forced to match per-day targets pre-computed from the Monte Carlo forecast.
+ * The spatial sim becomes a visualization of the surrogate's prediction.
  *
  * @param {Array} agents
  * @param {{W:number, H:number}} world
- * @param {{I:number}} target            target active infected for this tick
- * @param {number} recoveryTicks         infectious_period × ticks/day
- * @param {number} effectiveMortality    P(die | recover) — derived from MC totals
+ * @param {{I:number, R:number, D:number}} target  cumulative target counts
  */
-export function scriptedTick(agents, world, target, recoveryTicks, effectiveMortality) {
-  // 1) Movement (skip dead)
+export function scriptedTick(agents, world, target) {
+  // Movement (skip dead)
   for (const p of agents) {
     if (p.state === 'D') continue;
     p.x += p.vx;
@@ -158,25 +148,51 @@ export function scriptedTick(agents, world, target, recoveryTicks, effectiveMort
     if (p.y <= 0 || p.y >= world.H) { p.vy *= -1; p.y = Math.max(0, Math.min(world.H, p.y)); }
   }
 
-  // 2) Each infected agent's recovery clock advances; transition when it hits
-  // recoveryTicks. This is what gives the visual "people stay sick for 10 days"
-  // rather than instant flip on cumulative target.
+  // Tally current counts
+  let curS = 0, curI = 0, curR = 0, curD = 0;
   for (const p of agents) {
-    if (p.state !== 'I') continue;
-    p.ticksInfected = (p.ticksInfected ?? 0) + 1;
-    if (p.ticksInfected >= recoveryTicks) {
-      const die = Math.random() < (effectiveMortality ?? 0);
-      p.state = die ? 'D' : 'R';
-      if (die) { p.vx = 0; p.vy = 0; }
+    if (p.state === 'S') curS++;
+    else if (p.state === 'I') curI++;
+    else if (p.state === 'R') curR++;
+    else curD++;
+  }
+
+  const tgtI = Math.max(0, Math.round(target.I));
+  const tgtR = Math.max(0, Math.round(target.R));
+  const tgtD = Math.max(0, Math.round(target.D));
+
+  // 1) Promote to D first (cumulative — only grows). Prefer killing existing
+  // infected over recovered (dies after being sick).
+  let needD = Math.max(0, tgtD - curD);
+  if (needD > 0) {
+    for (const p of agents) {
+      if (needD <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'D'; p.vx = 0; p.vy = 0;
+        needD--; curI--; curD++;
+      }
+    }
+    for (const p of agents) {
+      if (needD <= 0) break;
+      if (p.state === 'R') {
+        p.state = 'D'; p.vx = 0; p.vy = 0;
+        needD--; curR--; curD++;
+      }
     }
   }
 
-  // 3) Reconcile active-infected count to target by adding new infections from S.
-  // We don't drop infected — natural recovery handles the downside of the wave.
-  let curI = 0;
-  for (const p of agents) if (p.state === 'I') curI++;
+  // 2) Promote to R (cumulative — only grows): I → R for any excess infected
+  let needR = Math.max(0, tgtR - curR);
+  if (needR > 0) {
+    for (const p of agents) {
+      if (needR <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'R'; needR--; curI--; curR++;
+      }
+    }
+  }
 
-  const tgtI = Math.max(0, Math.round(target.I));
+  // 3) Reconcile I to target (S → I if too few; I → R if too many)
   if (curI < tgtI) {
     let need = tgtI - curI;
     for (const p of agents) {
@@ -184,7 +200,16 @@ export function scriptedTick(agents, world, target, recoveryTicks, effectiveMort
       if (p.state === 'S') {
         p.state = 'I';
         p.ticksInfected = 0;
-        need--;
+        need--; curS--; curI++;
+      }
+    }
+  } else if (curI > tgtI) {
+    let drop = curI - tgtI;
+    for (const p of agents) {
+      if (drop <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'R';
+        drop--; curI--; curR++;
       }
     }
   }
