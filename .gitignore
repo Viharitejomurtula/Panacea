@@ -24,6 +24,12 @@ data/sweep.log
 # OS
 .DS_Store
 
+# Frontend (Vite + React)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
 # Project artifacts (uncomment to exclude)
 # data/abm_runs*.csv
 # checkpoints/
