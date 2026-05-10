@@ -193,6 +193,21 @@ export default function App() {
   // Per-day schedule of cumulative target counts derived from MC result.
   // schedule[t] = {I, R, D} for day t in 3000-person scaled space.
   const playbackScheduleRef = useRef<Array<{ I: number; R: number; D: number }> | null>(null);
+  // Recovery ticks (= virus infectious_period × TICKS_PER_DAY). Updated from MC.
+  const recoveryTicksRef = useRef<number>(40);
+  // Effective per-recovery mortality, derived as totalDeaths/totalCases from MC.
+  // Each I agent rolls this when its recovery clock expires.
+  const effMortalityRef = useRef<number>(0);
+
+  // Per-virus infectious period (matches abm_simulator/simulator.py presets).
+  const VIRUS_INFECTIOUS_DAYS: Record<string, number> = useMemo(() => ({
+    covid_wuhan: 10,
+    hantavirus_andes: 10,
+    h1n1_swine_flu: 7,
+    human_metapneumovirus: 8,
+    influenza_a_h3n2: 6,
+    spanish_flu: 7,
+  }), []);
 
   // Whenever predictResult changes, build a per-day schedule for the playback layer.
   useEffect(() => {
@@ -205,20 +220,23 @@ export default function App() {
     const totalCases = mc.summary_percentiles.total_cases?.p50 ?? 0;
     const totalDeaths = mc.summary_percentiles.total_deaths?.p50 ?? 0;
     playbackScheduleRef.current = buildPlaybackSchedule(traj, totalCases, totalDeaths);
-  }, [predictResult]);
+    const days = VIRUS_INFECTIOUS_DAYS[virus] ?? 10;
+    recoveryTicksRef.current = days * TICKS_PER_DAY;
+    effMortalityRef.current = totalCases > 0 ? totalDeaths / totalCases : 0;
+  }, [predictResult, virus, VIRUS_INFECTIOUS_DAYS]);
 
   const tick = useCallback(() => {
     const pts = agentsRef.current;
     const schedule = playbackScheduleRef.current;
-    const currentDayBefore = Math.floor(tickCountRef.current / TICKS_PER_DAY);
-    const target = schedule
-      ? schedule[Math.min(currentDayBefore, schedule.length - 1)]
-      : { I: 0, R: 0, D: 0 };
-    scriptedTick(pts, WORLD, target);
+    const recoveryTicks = recoveryTicksRef.current;
+    const effMortality = effMortalityRef.current;
+    const tgt = (tickCount: number) =>
+      schedule
+        ? schedule[Math.min(Math.floor(tickCount / TICKS_PER_DAY), schedule.length - 1)]
+        : { I: 0, R: 0, D: 0 };
+    scriptedTick(pts, WORLD, tgt(tickCountRef.current), recoveryTicks, effMortality);
     tickCountRef.current += 1;
-    scriptedTick(pts, WORLD, schedule
-      ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
-      : { I: 0, R: 0, D: 0 });
+    scriptedTick(pts, WORLD, tgt(tickCountRef.current), recoveryTicks, effMortality);
     agentsRef.current = [...pts];
     tickCountRef.current += 1;
 
