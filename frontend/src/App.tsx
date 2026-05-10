@@ -17,9 +17,51 @@ import {
   type SliderKey,
 } from "./interventionSliders";
 import { IntroVirusGraphic } from "./IntroVirusGraphic";
+import {
+  fetchPredict,
+  type PredictMcResponse,
+} from "./predict";
 import { VIRUS_LANDING } from "./virusLanding";
 import type { VirusId } from "./viruses";
 import { VIRUS_OPTIONS } from "./viruses";
+
+const MC_N_RUNS = 10_000;
+const SOBOL_BASE_N = 512;
+
+const SUMMARY_LABELS: Record<string, string> = {
+  peak_cases: "Peak cases",
+  peak_day: "Peak day",
+  total_cases: "Total cases",
+  total_deaths: "Total deaths",
+  days_over_hospital_capacity: "Days over hospital capacity",
+  attack_rate: "Attack rate",
+};
+
+function formatMetric(key: string, v: number): string {
+  if (key === "peak_day" || key === "days_over_hospital_capacity") {
+    return String(Math.round(v));
+  }
+  if (key === "attack_rate") {
+    return v.toFixed(4);
+  }
+  if (key === "total_deaths" || key === "total_cases" || key === "peak_cases") {
+    return Math.round(v).toLocaleString();
+  }
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+const SOBOL_PARAM_LABELS: Record<string, string> = {
+  r0: "R₀",
+  incubation_period: "Incubation (days)",
+  infectious_period: "Infectious period (days)",
+  mortality_rate: "Mortality rate",
+  asymptomatic_fraction: "Asymptomatic fraction",
+  vaccination_effectiveness: "Vaccine effectiveness",
+};
+
+function formatSobolIndex(v: number): string {
+  return v.toFixed(4);
+}
 
 /**
  * Panacea UI shell — map, controls, and API wiring can be added incrementally.
@@ -34,6 +76,34 @@ export default function App() {
   const [intervention, setIntervention] = useState(() => ({
     ...DEFAULT_USER_INTERVENTION,
   }));
+  const [simLoading, setSimLoading] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [predictResult, setPredictResult] = useState<PredictMcResponse | null>(
+    null,
+  );
+
+  const runSimulation = async () => {
+    setSimLoading(true);
+    setSimError(null);
+    try {
+      const out = await fetchPredict(virus, intervention, {
+        distribution: "mc",
+        nRuns: MC_N_RUNS,
+        sobolBaseN: SOBOL_BASE_N,
+      });
+      if (out.distribution !== "mc") {
+        setPredictResult(null);
+        setSimError("Expected Monte Carlo response");
+        return;
+      }
+      setPredictResult(out);
+    } catch (e) {
+      setPredictResult(null);
+      setSimError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSimLoading(false);
+    }
+  };
 
   const [agents, setAgents] = useState(() => initAgents(3000, WORLD));
   const agentsRef = useRef(agents);
@@ -114,6 +184,8 @@ export default function App() {
 
   const introDone = introPhase === "gone";
   const landing = VIRUS_LANDING[virus];
+  const mcResult = predictResult?.monte_carlo ?? null;
+  const sensitivity = predictResult?.sensitivity ?? null;
 
   return (
     <div
@@ -287,6 +359,11 @@ export default function App() {
                   ),
                 )}
               </div>
+              <p className="slider-fixed-param">
+                Symptomatic contact mult. fixed at{" "}
+                <strong>{FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER.toFixed(2)}</strong>{" "}
+                (model default — not adjustable).
+              </p>
               <button
                 type="button"
                 className="btn-reset-sliders"
@@ -295,6 +372,42 @@ export default function App() {
                 Reset
               </button>
             </fieldset>
+
+            <fieldset className="mc-fieldset">
+              <legend className="mc-legend">Surrogate forecast</legend>
+              <p className="mc-blurb">
+                <strong>POST /api/predict</strong> with{" "}
+                <code className="mc-code">distribution: &quot;mc&quot;</code> runs
+                Monte Carlo ({MC_N_RUNS.toLocaleString()} surrogate forwards) and
+                Sobol sensitivity (Saltelli base {SOBOL_BASE_N}). Uncertainty:
+                incubation & mortality bands per virus, ±1 day infectious period,
+                ±0.0005 asymptomatic & vaccine effectiveness, ±0.2 R₀. Start the
+                API:{" "}
+                <code className="mc-code">
+                  uvicorn api.main:app --reload
+                </code>
+              </p>
+              <button
+                type="button"
+                className="btn-monte-carlo"
+                disabled={simLoading}
+                onClick={runSimulation}
+              >
+                {simLoading
+                  ? "Running…"
+                  : `Run surrogate (MC + Sobol)`}
+              </button>
+              {simError && (
+                <p className="mc-error" role="alert">
+                  {simError}
+                </p>
+              )}
+            </fieldset>
+
+            <p className="controls-hint">
+              Preset: <code>{virus}</code> · Surrogate inputs match{" "}
+              <code>surrogate/schema.py</code>.
+            </p>
           </section>
 
           <section className="viz-panel">
@@ -320,6 +433,103 @@ export default function App() {
                 >
                   Start Simulation
                 </button>
+              </div>
+            )}
+          </section>
+
+          <section className="forecast-panel panel panel--viz">
+            <h2>Forecast &amp; sensitivity</h2>
+            {!mcResult && !simError && (
+              <div className="canvas-placeholder">
+                Run surrogate forecast to see Monte Carlo percentiles (p5 / p50 /
+                p95) and Sobol indices for uncertain disease parameters.
+              </div>
+            )}
+            {mcResult && (
+              <div className="mc-results">
+                <h3 className="mc-subheading">Monte Carlo distribution</h3>
+                <p className="mc-results-meta">
+                  <strong>{mcResult.n_runs.toLocaleString()}</strong> samples ·{" "}
+                  <code>{mcResult.virus_id}</code>
+                </p>
+                <div className="mc-table-wrap">
+                  <table className="mc-table">
+                    <thead>
+                      <tr>
+                        <th>Metric</th>
+                        <th>p5</th>
+                        <th>p50</th>
+                        <th>p95</th>
+                        <th>Mean</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(mcResult.summary_percentiles).map(
+                        ([key, v]) => (
+                          <tr key={key}>
+                            <td>{SUMMARY_LABELS[key] ?? key}</td>
+                            <td>{formatMetric(key, v.p5)}</td>
+                            <td>{formatMetric(key, v.p50)}</td>
+                            <td>{formatMetric(key, v.p95)}</td>
+                            <td>{formatMetric(key, v.mean)}</td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mc-trajectory-note">
+                  Infected trajectory: {mcResult.trajectory_days} days × p5/p50/p95
+                  returned for charting (console / plot hookup next).
+                </p>
+
+                {sensitivity && (
+                  <div className="sobol-block">
+                    <h3 className="mc-subheading">Sobol sensitivity</h3>
+                    <p className="mc-results-meta">
+                      Outcome:{" "}
+                      <strong>
+                        {SUMMARY_LABELS[sensitivity.output_metric] ??
+                          sensitivity.output_metric}
+                      </strong>
+                      · Saltelli base <strong>{sensitivity.saltelli_base_n}</strong>{" "}
+                      · <strong>{sensitivity.n_model_evals.toLocaleString()}</strong>{" "}
+                      model evaluations
+                    </p>
+                    <div className="mc-table-wrap">
+                      <table className="mc-table mc-table--sobol">
+                        <thead>
+                          <tr>
+                            <th>Parameter</th>
+                            <th>S1 (first-order)</th>
+                            <th>ST (total)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sensitivity.parameters.map((row) => (
+                            <tr key={row.name}>
+                              <td>
+                                {SOBOL_PARAM_LABELS[row.name] ?? row.name}
+                              </td>
+                              <td>
+                                {formatSobolIndex(row.S1)}{" "}
+                                <span className="sobol-conf">
+                                  ± {formatSobolIndex(row.S1_conf)}
+                                </span>
+                              </td>
+                              <td>
+                                {formatSobolIndex(row.ST)}{" "}
+                                <span className="sobol-conf">
+                                  ± {formatSobolIndex(row.ST_conf)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>

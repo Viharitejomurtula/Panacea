@@ -7,4 +7,10 @@ export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom"],
   },
+  server: {
+    proxy: {
+      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/health": { target: "http://127.0.0.1:8000", changeOrigin: true },
+    },
+  },
 });

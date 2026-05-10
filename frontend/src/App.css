@@ -534,7 +534,7 @@ main {
 
 @media (min-width: 900px) {
   main {
-    grid-template-columns: 210px 1fr;
+    grid-template-columns: 210px minmax(0, 1fr) minmax(260px, 22rem);
     align-items: stretch;
   }
 }
@@ -564,6 +564,23 @@ main {
   position: relative;
   overflow: hidden;
   background: #060a10;
+}
+
+.forecast-panel {
+  overflow-y: auto;
+  padding: 0.65rem 0.75rem;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  min-height: 0;
+}
+
+.forecast-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 /* Start simulation overlay */
@@ -990,4 +1007,142 @@ main {
   font-size: 0.82rem;
   line-height: 1.65;
   color: var(--text-muted);
+}
+
+.mc-fieldset {
+  margin: 1rem 0 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.mc-legend {
+  display: block;
+  margin: 0 0 0.45rem;
+  padding: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.mc-blurb {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.mc-code {
+  font-size: 0.68rem;
+  color: var(--accent);
+}
+
+.btn-monte-carlo {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(110, 168, 254, 0.12);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-monte-carlo:hover:not(:disabled) {
+  background: rgba(110, 168, 254, 0.22);
+}
+
+.btn-monte-carlo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mc-error {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: #f87171;
+  line-height: 1.4;
+}
+
+.panel--viz {
+  min-height: 320px;
+}
+
+.mc-results-meta {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.mc-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.mc-table th,
+.mc-table td {
+  padding: 0.45rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.mc-table th:first-child,
+.mc-table td:first-child {
+  text-align: left;
+}
+
+.mc-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.mc-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mc-trajectory-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.mc-subheading {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mc-subheading:first-child {
+  margin-top: 0;
+}
+
+.sobol-block {
+  margin-top: 1.15rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.sobol-conf {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.mc-table--sobol td {
+  font-variant-numeric: tabular-nums;
 }

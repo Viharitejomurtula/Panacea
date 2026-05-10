@@ -1,3 +1,4 @@
+# Panacea — surrogate + ABM + API
 scikit-learn
 joblib
 pandas
@@ -5,3 +6,9 @@ numpy
 torch
 mesa
 matplotlib
+
+# HTTP API (predict / Monte Carlo / Sobol)
+fastapi>=0.109
+uvicorn[standard]>=0.27
+pydantic>=2.0
+SALib>=1.4
