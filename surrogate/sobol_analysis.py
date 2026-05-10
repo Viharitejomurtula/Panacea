@@ -1,7 +1,8 @@
-"""Sobol sensitivity (SALib) over the same uncertain inputs as Monte Carlo.
+"""Sobol sensitivity (SALib) over the user-controllable intervention sliders.
 
 Saltelli sampling + surrogate batch inference + variance decomposition for one
-summary metric at a time (``OUTPUT_COLS``).
+summary metric at a time (``OUTPUT_COLS``). Asks: "across the full slider space,
+which intervention drives the most variance in the chosen outcome?"
 """
 from __future__ import annotations
 
@@ -9,15 +10,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from .monte_carlo import (
-    DELTA_ASYMPTOMATIC,
-    DELTA_INFECTIOUS_DAYS,
-    DELTA_R0,
-    DELTA_VACCINATION_EFFECTIVENESS,
-    INCUBATION_RANGE,
-    MORTALITY_RANGE,
-    build_nominal_row,
-)
+from .monte_carlo import build_nominal_row
 from .predict import Surrogate
 from .schema import INPUT_COLS, INPUT_RANGES, OUTPUT_COLS
 
@@ -31,14 +24,13 @@ except ImportError as e:  # pragma: no cover
 else:
     _SALIB_IMPORT_ERROR = None
 
-# Same six uncertain knobs as ``monte_carlo.sample_input_matrix`` (fixed order for SALib).
+# The four user-controllable sliders. Sobol asks: across the full range of these
+# four, which matters most for the chosen outcome?
 SOBOL_PARAM_NAMES = [
-    "r0",
-    "incubation_period",
-    "infectious_period",
-    "mortality_rate",
-    "asymptomatic_fraction",
-    "vaccination_effectiveness",
+    "intervention_day",
+    "mask_compliance",
+    "vaccination_rate",
+    "contact_reduction",
 ]
 
 
@@ -66,52 +58,16 @@ def sobol_bounds_for_virus(
     virus_id: str,
     nominal: Mapping[str, float],
 ) -> list[tuple[float, float]]:
-    """Bounds per ``SOBOL_PARAM_NAMES``, aligned with MC uncertainty ranges."""
-    inc_lo, inc_hi = INCUBATION_RANGE[virus_id]
-    mort_lo, mort_hi = MORTALITY_RANGE[virus_id]
-    r0_b, r1 = INPUT_RANGES["r0"]
-    ip_b, ip1 = INPUT_RANGES["infectious_period"]
-    asym_b, asym1 = INPUT_RANGES["asymptomatic_fraction"]
-    vacc_b, vacc1 = INPUT_RANGES["vaccination_effectiveness"]
-    inc_r_lo, inc_r_hi = INPUT_RANGES["incubation_period"]
-    mort_r_lo, mort_r_hi = INPUT_RANGES["mortality_rate"]
+    """Full slider ranges per ``SOBOL_PARAM_NAMES``.
 
-    r0_lo, r0_hi = _safe_span(
-        _clip(float(nominal["r0"]) - DELTA_R0, r0_b, r1),
-        _clip(float(nominal["r0"]) + DELTA_R0, r0_b, r1),
-    )
-    inc_lo_c, inc_hi_c = _safe_span(
-        _clip(inc_lo, inc_r_lo, inc_r_hi),
-        _clip(inc_hi, inc_r_lo, inc_r_hi),
-    )
-    ip_nom = float(nominal["infectious_period"])
-    ip_lo_c, ip_hi_c = _safe_span(
-        _clip(ip_nom - DELTA_INFECTIOUS_DAYS, ip_b, ip1),
-        _clip(ip_nom + DELTA_INFECTIOUS_DAYS, ip_b, ip1),
-    )
-    mort_lo_c, mort_hi_c = _safe_span(
-        _clip(mort_lo, mort_r_lo, mort_r_hi),
-        _clip(mort_hi, mort_r_lo, mort_r_hi),
-    )
-    asym_nom = float(nominal["asymptomatic_fraction"])
-    asym_lo_c, asym_hi_c = _safe_span(
-        _clip(asym_nom - DELTA_ASYMPTOMATIC, asym_b, asym1),
-        _clip(asym_nom + DELTA_ASYMPTOMATIC, asym_b, asym1),
-    )
-    vacc_nom = float(nominal["vaccination_effectiveness"])
-    vacc_lo_c, vacc_hi_c = _safe_span(
-        _clip(vacc_nom - DELTA_VACCINATION_EFFECTIVENESS, vacc_b, vacc1),
-        _clip(vacc_nom + DELTA_VACCINATION_EFFECTIVENESS, vacc_b, vacc1),
-    )
-
-    return [
-        (r0_lo, r0_hi),
-        (inc_lo_c, inc_hi_c),
-        (ip_lo_c, ip_hi_c),
-        (mort_lo_c, mort_hi_c),
-        (asym_lo_c, asym_hi_c),
-        (vacc_lo_c, vacc_hi_c),
-    ]
+    ``virus_id`` and ``nominal`` are unused here (kept for API stability with
+    callers); slider bounds come straight from ``INPUT_RANGES``.
+    """
+    bounds: list[tuple[float, float]] = []
+    for name in SOBOL_PARAM_NAMES:
+        lo, hi = INPUT_RANGES[name]
+        bounds.append(_safe_span(float(lo), float(hi)))
+    return bounds
 
 
 def sobol_params_to_input_matrix(
@@ -119,7 +75,11 @@ def sobol_params_to_input_matrix(
     virus_id: str,
     intervention: Mapping[str, float],
 ) -> np.ndarray:
-    """Map Saltelli matrix ``(n, 6)`` to full surrogate inputs ``(n, len(INPUT_COLS))``."""
+    """Map Saltelli matrix ``(n, 4)`` to full surrogate inputs ``(n, len(INPUT_COLS))``.
+
+    Disease and community params come from the virus preset + ``intervention``;
+    the four sliders are overridden with the Saltelli samples.
+    """
     nominal = build_nominal_row(virus_id, intervention)
     idx = {n: i for i, n in enumerate(SOBOL_PARAM_NAMES)}
     n = param_values.shape[0]
@@ -127,12 +87,10 @@ def sobol_params_to_input_matrix(
     for i in range(n):
         row = dict(nominal)
         pv = param_values[i]
-        row["r0"] = float(pv[idx["r0"]])
-        row["incubation_period"] = float(pv[idx["incubation_period"]])
-        row["infectious_period"] = float(pv[idx["infectious_period"]])
-        row["mortality_rate"] = float(pv[idx["mortality_rate"]])
-        row["asymptomatic_fraction"] = float(pv[idx["asymptomatic_fraction"]])
-        row["vaccination_effectiveness"] = float(pv[idx["vaccination_effectiveness"]])
+        for name in SOBOL_PARAM_NAMES:
+            row[name] = float(pv[idx[name]])
+        # intervention_day must be an integer day count
+        row["intervention_day"] = int(round(row["intervention_day"]))
         rows[i] = [row[c] for c in INPUT_COLS]
     return rows
 

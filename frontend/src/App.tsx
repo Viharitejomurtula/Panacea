@@ -58,12 +58,10 @@ function formatMetric(key: string, v: number): string {
 }
 
 const SOBOL_PARAM_LABELS: Record<string, string> = {
-  r0: "R₀",
-  incubation_period: "Incubation (days)",
-  infectious_period: "Infectious period (days)",
-  mortality_rate: "Mortality rate",
-  asymptomatic_fraction: "Asymptomatic fraction",
-  vaccination_effectiveness: "Vaccine effectiveness",
+  intervention_day: "When intervention starts",
+  mask_compliance: "Mask compliance",
+  vaccination_rate: "Vaccination rate",
+  contact_reduction: "Contact reduction (lockdown)",
 };
 
 function formatSobolIndex(v: number): string {
@@ -89,7 +87,7 @@ export default function App() {
     null,
   );
 
-  const runSimulation = async () => {
+  const runSimulation = useCallback(async () => {
     setSimLoading(true);
     setSimError(null);
     try {
@@ -110,7 +108,7 @@ export default function App() {
     } finally {
       setSimLoading(false);
     }
-  };
+  }, [virus, intervention]);
 
   const [agents, setAgents] = useState(() => initAgents(3000, WORLD));
   const agentsRef = useRef(agents);
@@ -149,6 +147,8 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
 
+  const autoForecastedRef = useRef(false);
+
   const rerunSpatialSimulation = useCallback(() => {
     const next = initAgents(3000, WORLD);
     agentsRef.current = next;
@@ -158,6 +158,8 @@ export default function App() {
     setDay(0);
     setIsRunning(false);
     setExplainOpen(false);
+    setPredictResult(null);
+    autoForecastedRef.current = false;
   }, []);
 
   const returnToLanding = useCallback(() => {
@@ -225,6 +227,17 @@ export default function App() {
   }, [sensitivity]);
 
   const spatialSimComplete = day >= 365 && !isRunning;
+
+  // Auto-run the surrogate (MC + Sobol) the first time the spatial sim finishes
+  // for this run. Reset by `rerunSpatialSimulation`, so each rerun triggers a
+  // fresh forecast without the user having to click the button.
+  useEffect(() => {
+    if (!spatialSimComplete) return;
+    if (autoForecastedRef.current) return;
+    if (simLoading) return;
+    autoForecastedRef.current = true;
+    runSimulation();
+  }, [spatialSimComplete, simLoading, runSimulation]);
 
   return (
     <div

@@ -25,10 +25,6 @@ interface Props {
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
-function formatIdx(v: number): string {
-  return v.toFixed(4);
-}
-
 async function fetchGeminiSummary(p: {
   total: number;
   peakInfected: number;
@@ -47,31 +43,31 @@ async function fetchGeminiSummary(p: {
 
   let sensitivityBlock = "";
   if (p.sobolContext) {
-    const c = p.sobolContext;
     sensitivityBlock = `
 
-Global sensitivity (Sobol analysis on the neural surrogate, same disease preset):
-- Outcome metric: ${c.outcomeLabel}
-- Strongest driver of variance among uncertain disease parameters: ${c.paramLabel} (total-order index ST ≈ ${formatIdx(c.ST)}, first-order S1 ≈ ${formatIdx(c.S1)})
-Briefly mention this driver in your answer where it helps interpret scale or uncertainty — do not invent other rankings.`;
+Most impactful choice: ${p.sobolContext.paramLabel} (this slider made the biggest difference to the final outcome). Mention it briefly and naturally in your explanation when describing what mattered most. Do not invent other rankings or use any technical terms.`;
   }
 
-  const prompt = `You are summarizing an epidemic simulation for a general audience.
+  const prompt = `You are explaining an epidemic simulation to someone with no scientific background. Use simple, everyday language a high-schooler could understand.
 
-Simulation facts:
+What happened in the simulation:
 - Disease: ${p.virusLabel}
-- Population: ${p.total.toLocaleString()} agents in a single suburb
-- Duration: 365 simulated days
-- Peak simultaneous infections: ${p.peakInfected.toLocaleString()} (${peakPct}% of the population)
-- End state: ${p.finalInfected.toLocaleString()} still infected, ${p.finalRecovered.toLocaleString()} recovered (${recoveredPct}%), ${p.finalSusceptible.toLocaleString()} never infected
+- Town size: ${p.total.toLocaleString()} people
+- Time: about one year
+- Worst day: ${p.peakInfected.toLocaleString()} people sick at the same time (${peakPct}% of the town)
+- A year later: ${p.finalRecovered.toLocaleString()} had been sick and recovered (${recoveredPct}%), ${p.finalInfected.toLocaleString()} were still sick, and ${p.finalSusceptible.toLocaleString()} never caught it
 ${sensitivityBlock}
 
 Write exactly 3 short paragraphs separated by blank lines:
-(1) What happened over the year in plain language.
-(2) What the peak and final counts imply.
-(3) If sensitivity data was provided, one paragraph on the most impactful uncertain parameter and how it relates to epidemic severity; if no sensitivity block was provided, instead ask the user to run the surrogate forecast to see Sobol rankings — one sentence only.
+(1) Tell the story of what happened over the year — how the outbreak grew, peaked, and faded.
+(2) Explain what the numbers mean for a regular person — how bad it got, who got sick, what it would feel like.
+(3) If a "most impactful choice" was provided, explain in plain language why that one slider made the biggest difference and what it tells us about controlling outbreaks. Otherwise, just one short sentence inviting the reader to try changing the sliders.
 
-Rules: no bullet points, no markdown headers, scientific but accessible tone. Start the first paragraph with "Over the course of 365 days,".`;
+Rules:
+- Absolutely no technical terms. Banned words: "Sobol", "sensitivity", "variance", "index", "surrogate", "ST", "S1", "first-order", "total-order", "Monte Carlo", "uncertainty", "parameter", "metric", "compute", "model".
+- No bullet points, no headers.
+- Friendly, conversational tone — like explaining to a curious friend.
+- Start the first paragraph with "Over the year,".`;
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
@@ -228,7 +224,7 @@ const SimExplainer: FC<Props> = ({
 
               <div className="explain-panel__section">
                 <p className="explain-panel__section-label">
-                  Most impactful factor (Sobol)
+                  What made the biggest difference
                 </p>
                 {sobolContext ? (
                   <>
@@ -239,24 +235,22 @@ const SimExplainer: FC<Props> = ({
                           {sobolContext.paramLabel}
                         </span>
                         <span className="explain-panel__factor-tag">
-                          Total-order ST {formatIdx(sobolContext.ST)} · S1{" "}
-                          {formatIdx(sobolContext.S1)} · for{" "}
-                          {sobolContext.outcomeLabel}
+                          The choice that shaped {sobolContext.outcomeLabel.toLowerCase()} the most
                         </span>
                       </div>
                     </div>
                     <p className="explain-panel__factor-desc">
-                      Among uncertain disease parameters in the surrogate model,
-                      this input explains the largest share of variance in{" "}
-                      <strong>{sobolContext.outcomeLabel}</strong> (global
-                      sensitivity analysis).
+                      Out of all the actions you can take, adjusting{" "}
+                      <strong>{sobolContext.paramLabel.toLowerCase()}</strong>{" "}
+                      had the biggest impact on{" "}
+                      <strong>{sobolContext.outcomeLabel.toLowerCase()}</strong>.
+                      Try sliding it to see how much it changes the outbreak.
                     </p>
                   </>
                 ) : (
                   <p className="explain-panel__factor-desc">
-                    Run <strong>surrogate (MC + Sobol)</strong> in the controls
-                    panel to compute Sobol indices; then open this explanation
-                    again to see the ranked driver for the surrogate outcome.
+                    The forecast is still running. Once it finishes, this section
+                    will show which choice mattered most.
                   </p>
                 )}
               </div>
