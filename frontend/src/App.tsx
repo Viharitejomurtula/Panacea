@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 // @ts-ignore — JS module, no types
 import SimCanvas from "./components/SimCanvas.jsx";
 // @ts-ignore
@@ -8,7 +15,7 @@ import { initAgents } from "./simulation/initAgents";
 // @ts-ignore
 import { tickSimulation } from "./simulation/tickSimulation";
 import InfectionGraph from "./InfectionGraph";
-import SimExplainer from "./SimExplainer";
+import SimExplainer, { type SobolExplainContext } from "./SimExplainer";
 import "./App.css";
 import {
   DEFAULT_USER_INTERVENTION,
@@ -140,6 +147,23 @@ export default function App() {
   }, []);
 
   const [isRunning, setIsRunning] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
+
+  const rerunSpatialSimulation = useCallback(() => {
+    const next = initAgents(3000, WORLD);
+    agentsRef.current = next;
+    setAgents(next);
+    tickCountRef.current = 0;
+    setHistory([12]);
+    setDay(0);
+    setIsRunning(false);
+    setExplainOpen(false);
+  }, []);
+
+  const returnToLanding = useCallback(() => {
+    setExplainOpen(false);
+    setIntroPhase("visible");
+  }, []);
 
   useEffect(() => {
     if (!isRunning) {
@@ -186,6 +210,21 @@ export default function App() {
   const landing = VIRUS_LANDING[virus];
   const mcResult = predictResult?.monte_carlo ?? null;
   const sensitivity = predictResult?.sensitivity ?? null;
+
+  const sobolExplainContext = useMemo((): SobolExplainContext | null => {
+    if (!sensitivity?.parameters?.length) return null;
+    const top = sensitivity.parameters[0];
+    return {
+      paramKey: top.name,
+      paramLabel: SOBOL_PARAM_LABELS[top.name] ?? top.name,
+      ST: top.ST,
+      S1: top.S1,
+      outcomeLabel:
+        SUMMARY_LABELS[sensitivity.output_metric] ?? sensitivity.output_metric,
+    };
+  }, [sensitivity]);
+
+  const spatialSimComplete = day >= 365 && !isRunning;
 
   return (
     <div
@@ -300,8 +339,18 @@ export default function App() {
       )}
 
       <div className="app-shell">
-        <header>
+        <header className="app-header">
           <h1>Panacea</h1>
+          {introDone && (
+            <button
+              type="button"
+              className="header-entry-btn"
+              onClick={returnToLanding}
+              aria-label="Back to landing page"
+            >
+              Entry page
+            </button>
+          )}
         </header>
 
         <main>
@@ -376,17 +425,21 @@ export default function App() {
             <fieldset className="mc-fieldset">
               <legend className="mc-legend">Surrogate forecast</legend>
               <p className="mc-blurb">
-                <strong>POST /api/predict</strong> with{" "}
-                <code className="mc-code">distribution: &quot;mc&quot;</code> runs
-                Monte Carlo ({MC_N_RUNS.toLocaleString()} surrogate forwards) and
-                Sobol sensitivity (Saltelli base {SOBOL_BASE_N}). Uncertainty:
-                incubation & mortality bands per virus, ±1 day infectious period,
-                ±0.0005 asymptomatic & vaccine effectiveness, ±0.2 R₀. Start the
-                API:{" "}
-                <code className="mc-code">
-                  uvicorn api.main:app --reload
-                </code>
+                Surrogate run:{" "}
+                <strong>{MC_N_RUNS.toLocaleString()} MC</strong> + Sobol (base{" "}
+                {SOBOL_BASE_N}). Needs API on port 8000.
               </p>
+              <details className="mc-details">
+                <summary>Technical details</summary>
+                <div className="mc-details__body">
+                  <strong>POST /api/predict</strong>{" "}
+                  <code className="mc-code">distribution: &quot;mc&quot;</code>.
+                  Uncertainty: per-virus incubation &amp; mortality bands, ±1 day
+                  infectious period, ±0.0005 asymptomatic &amp; vaccine
+                  effectiveness, ±0.2 R₀. Start:{" "}
+                  <code className="mc-code">uvicorn api.main:app --reload</code>
+                </div>
+              </details>
               <button
                 type="button"
                 className="btn-monte-carlo"
@@ -411,38 +464,57 @@ export default function App() {
           </section>
 
           <section className="viz-panel">
-            <SimCanvas
-              agents={agents}
-              diseaseColor={[248, 113, 113, 220]}
-            />
-            <InfectionGraph history={history} total={3000} day={day} />
-            {day >= 365 && (
-              <SimExplainer
-                history={history}
+            <div className="viz-panel__map">
+              <SimCanvas
                 agents={agents}
-                total={3000}
-                virusLabel={VIRUS_OPTIONS.find((v) => v.id === virus)?.label ?? virus}
+                diseaseColor={[248, 113, 113, 220]}
               />
-            )}
-            {!isRunning && day === 0 && (
-              <div className="sim-overlay">
-                <button
-                  type="button"
-                  className="sim-start-btn"
-                  onClick={() => setIsRunning(true)}
-                >
-                  Start Simulation
-                </button>
-              </div>
-            )}
+            </div>
+            <div className="viz-panel__hud">
+              <InfectionGraph history={history} total={3000} day={day} />
+              {spatialSimComplete && (
+                <>
+                  <button
+                    type="button"
+                    className="sim-rerun-btn"
+                    onClick={rerunSpatialSimulation}
+                  >
+                    Rerun simulation
+                  </button>
+                  <SimExplainer
+                    open={explainOpen}
+                    onOpen={() => setExplainOpen(true)}
+                    onClose={() => setExplainOpen(false)}
+                    history={history}
+                    agents={agents}
+                    total={3000}
+                    virusLabel={
+                      VIRUS_OPTIONS.find((v) => v.id === virus)?.label ?? virus
+                    }
+                    sobolContext={sobolExplainContext}
+                  />
+                </>
+              )}
+              {!isRunning && day === 0 && (
+                <div className="sim-overlay">
+                  <button
+                    type="button"
+                    className="sim-start-btn"
+                    onClick={() => setIsRunning(true)}
+                  >
+                    Start Simulation
+                  </button>
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="forecast-panel panel panel--viz">
             <h2>Forecast &amp; sensitivity</h2>
             {!mcResult && !simError && (
               <div className="canvas-placeholder">
-                Run surrogate forecast to see Monte Carlo percentiles (p5 / p50 /
-                p95) and Sobol indices for uncertain disease parameters.
+                Run <strong>surrogate (MC + Sobol)</strong> for percentiles &amp;
+                sensitivity.
               </div>
             )}
             {mcResult && (
