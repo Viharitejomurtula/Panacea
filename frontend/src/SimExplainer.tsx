@@ -58,21 +58,24 @@ What happened in the simulation:
 - A year later: ${p.finalRecovered.toLocaleString()} had been sick and recovered (${recoveredPct}%), ${p.finalInfected.toLocaleString()} were still sick, and ${p.finalSusceptible.toLocaleString()} never caught it
 ${sensitivityBlock}
 
-Write exactly 3 short paragraphs separated by blank lines:
-(1) Tell the story of what happened over the year — how the outbreak grew, peaked, and faded.
-(2) Explain what the numbers mean for a regular person — how bad it got, who got sick, what it would feel like.
-(3) If a "most impactful choice" was provided, explain in plain language why that one slider made the biggest difference and what it tells us about controlling outbreaks. Otherwise, just one short sentence inviting the reader to try changing the sliders.
+Write 2 to 3 short paragraphs (each 3-5 complete sentences), separated by blank lines. The whole answer should be roughly 8-12 sentences total. Make sure every sentence ends with proper punctuation and that no paragraph is cut off mid-sentence.
+
+What to cover:
+- Tell the story of how the outbreak grew, peaked, and faded over the year, including roughly when the worst point arrived and how the town recovered.
+- Explain what the numbers feel like for a regular person — how big the peak was relative to the town, who ended up sick or fine, and what it would have felt like to live through.
+- If a "most impactful choice" was provided, name it clearly and explain in plain language why that one slider mattered most and what that tells us about real-world disease control. If no choice was provided, end with one sentence inviting the reader to try the sliders.
 
 Rules:
-- Absolutely no technical terms. Banned words: "Sobol", "sensitivity", "variance", "index", "surrogate", "ST", "S1", "first-order", "total-order", "Monte Carlo", "uncertainty", "parameter", "metric", "compute", "model".
-- No bullet points, no headers.
-- Friendly, conversational tone — like explaining to a curious friend.
-- Start the first paragraph with "Over the year,".`;
+- Absolutely no technical terms. Banned words: "Sobol", "sensitivity", "variance", "index", "surrogate", "ST", "S1", "first-order", "total-order", "Monte Carlo", "uncertainty", "parameter", "metric", "compute", "model", "agent", "simulation".
+- No bullet points, no headers, no markdown.
+- Friendly, conversational, hopeful but realistic — like explaining to a curious friend.
+- Start the first paragraph with "Over the year,".
+- Make it comprehensive — don't be terse. Use complete sentences, finish your thoughts.`;
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    generationConfig: { maxOutputTokens: 400, temperature: 0.55 },
+    generationConfig: { maxOutputTokens: 1200, temperature: 0.6 },
   });
   const result = await model.generateContent(prompt);
   return result.response.text().trim() || "Summary unavailable.";
