@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panacea — Epidemic Surrogate Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #0e0e10; color: #eee; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    .sub { color: #888; margin-bottom: 24px; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; }
+    .panel { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 16px; }
+    label { display: block; margin: 12px 0 4px; font-size: 12px; color: #aaa; }
+    input[type=range] { width: 100%; }
+    select, input[type=text] { width: 100%; padding: 6px 8px; background: #27272a; color: #eee; border: 1px solid #3f3f46; border-radius: 4px; box-sizing: border-box; }
+    .val { float: right; color: #fbbf24; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .stat { background: #27272a; padding: 10px; border-radius: 4px; }
+    .stat .l { font-size: 11px; color: #888; }
+    .stat .v { font-size: 18px; color: #fbbf24; font-weight: 600; }
+    button { padding: 8px 12px; background: #fbbf24; color: #000; border: 0; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    canvas { max-height: 320px; }
+    .nl { display: flex; gap: 8px; margin-top: 12px; }
+    .nl input { flex: 1; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Panacea</h1>
+  <div class="sub">Live epidemic simulation — neural surrogate predicts in &lt;1ms</div>
+
+  <div class="grid">
+    <div class="panel">
+      <label>Disease preset
+        <select id="preset"></select>
+      </label>
+
+      <label>Intervention day <span class="val" id="vid">30</span>
+        <input type="range" id="intervention_day" min="0" max="60" step="1" value="30">
+      </label>
+      <label>Mask compliance <span class="val" id="vmask">0.50</span>
+        <input type="range" id="mask_compliance" min="0" max="1" step="0.05" value="0.5">
+      </label>
+      <label>Vaccination rate (daily) <span class="val" id="vvacc">0.005</span>
+        <input type="range" id="vaccination_rate" min="0" max="0.05" step="0.001" value="0.005">
+      </label>
+      <label>Contact reduction (lockdown) <span class="val" id="vcontact">0.40</span>
+        <input type="range" id="contact_reduction" min="0" max="0.9" step="0.05" value="0.4">
+      </label>
+      <label>Symptomatic isolation strength <span class="val" id="vsym">0.30</span>
+        <input type="range" id="symptomatic_contact_multiplier" min="0" max="1" step="0.05" value="0.3">
+      </label>
+
+      <div class="nl">
+        <input type="text" id="nl" placeholder="or describe in plain English…" />
+        <button id="ask">Ask AI</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="chart"></canvas>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SLIDERS = {
+  intervention_day:               { fmt: v => v },
+  mask_compliance:                { fmt: v => Number(v).toFixed(2) },
+  vaccination_rate:               { fmt: v => Number(v).toFixed(3) },
+  contact_reduction:              { fmt: v => Number(v).toFixed(2) },
+  symptomatic_contact_multiplier: { fmt: v => Number(v).toFixed(2) },
+};
+const valEl = {
+  intervention_day: 'vid', mask_compliance: 'vmask', vaccination_rate: 'vvacc',
+  contact_reduction: 'vcontact', symptomatic_contact_multiplier: 'vsym',
+};
+
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [...Array(365).keys()], datasets: [{
+    label: 'Active infected', data: [], borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251,191,36,.15)', fill: true, pointRadius: 0, tension: .3,
+  }] },
+  options: {
+    animation: false,
+    scales: {
+      x: { title: { display: true, text: 'Day', color: '#aaa' }, ticks: { color: '#888' }, grid: { color: '#27272a' } },
+      y: { title: { display: true, text: 'Active infections', color: '#aaa' }, ticks: { color: '#888' }, grid: { color: '#27272a' }, beginAtZero: true },
+    },
+    plugins: { legend: { labels: { color: '#aaa' } } },
+  },
+});
+
+async function loadPresets() {
+  const r = await fetch('/presets');
+  const list = await r.json();
+  const sel = document.getElementById('preset');
+  sel.innerHTML = list.map(n => `<option value="${n}">${n.replace(/_/g, ' ')}</option>`).join('');
+  sel.value = list.includes('covid_wuhan') ? 'covid_wuhan' : list[0];
+  sel.addEventListener('change', predict);
+}
+
+function readSliders() {
+  const out = { disease_preset: document.getElementById('preset').value };
+  for (const k of Object.keys(SLIDERS)) {
+    const el = document.getElementById(k);
+    out[k] = el.type === 'range' && el.step.includes('.') ? parseFloat(el.value) : parseInt(el.value);
+    document.getElementById(valEl[k]).textContent = SLIDERS[k].fmt(el.value);
+  }
+  return out;
+}
+
+function setSliders(obj) {
+  for (const k of Object.keys(SLIDERS)) {
+    if (obj[k] !== undefined) document.getElementById(k).value = obj[k];
+  }
+  predict();
+}
+
+async function predict() {
+  const body = readSliders();
+  const r = await fetch('/predict', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r.ok) { console.error(await r.text()); return; }
+  const data = await r.json();
+  chart.data.datasets[0].data = data.trajectory;
+  chart.update();
+  const s = data.summary;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="l">Peak cases</div><div class="v">${Math.round(s.peak_cases)}</div></div>
+    <div class="stat"><div class="l">Peak day</div><div class="v">${Math.round(s.peak_day)}</div></div>
+    <div class="stat"><div class="l">Total cases</div><div class="v">${Math.round(s.total_cases)}</div></div>
+    <div class="stat"><div class="l">Total deaths</div><div class="v">${Math.round(s.total_deaths)}</div></div>
+    <div class="stat"><div class="l">Days over capacity</div><div class="v">${Math.round(s.days_over_hospital_capacity)}</div></div>
+    <div class="stat"><div class="l">Attack rate</div><div class="v">${(s.attack_rate * 100).toFixed(1)}%</div></div>
+  `;
+}
+
+document.getElementById('ask').addEventListener('click', async () => {
+  const prompt = document.getElementById('nl').value.trim();
+  if (!prompt) return;
+  const btn = document.getElementById('ask');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await fetch('/parse', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, disease_preset: document.getElementById('preset').value }),
+    });
+    if (!r.ok) { alert('Parse failed: ' + await r.text()); return; }
+    setSliders(await r.json());
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ask AI';
+  }
+});
+
+document.querySelectorAll('input[type=range]').forEach(el => {
+  el.addEventListener('input', predict);
+});
+
+loadPresets().then(predict);
+</script>
+</body>
+</html>
