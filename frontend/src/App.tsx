@@ -436,33 +436,14 @@ export default function App() {
             </fieldset>
 
             <fieldset className="mc-fieldset">
-              <legend className="mc-legend">Surrogate forecast</legend>
+              <legend className="mc-legend">Forecast</legend>
               <p className="mc-blurb">
-                Surrogate run:{" "}
-                <strong>{MC_N_RUNS.toLocaleString()} MC</strong> + Sobol (base{" "}
-                {SOBOL_BASE_N}). Needs API on port 8000.
-              </p>
-              <details className="mc-details">
-                <summary>Technical details</summary>
-                <div className="mc-details__body">
-                  <strong>POST /api/predict</strong>{" "}
-                  <code className="mc-code">distribution: &quot;mc&quot;</code>.
-                  Uncertainty: per-virus incubation &amp; mortality bands, ±1 day
-                  infectious period, ±0.0005 asymptomatic &amp; vaccine
-                  effectiveness, ±0.2 R₀. Start:{" "}
-                  <code className="mc-code">uvicorn api.main:app --reload</code>
-                </div>
-              </details>
-              <button
-                type="button"
-                className="btn-monte-carlo"
-                disabled={simLoading}
-                onClick={runSimulation}
-              >
                 {simLoading
-                  ? "Running…"
-                  : `Run surrogate (MC + Sobol)`}
-              </button>
+                  ? "Running forecast…"
+                  : predictResult
+                    ? "Forecast ready — see results below."
+                    : "Forecast runs automatically when the simulation finishes."}
+              </p>
               {simError && (
                 <p className="mc-error" role="alert">
                   {simError}

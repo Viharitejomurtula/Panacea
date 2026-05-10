@@ -27,6 +27,14 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+# Auto-load API keys from .env.local at the project root
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_ROOT / ".env.local")
+    load_dotenv(_ROOT / ".env")
+except ImportError:
+    pass
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response

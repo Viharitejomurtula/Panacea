@@ -71,7 +71,7 @@ Rules:
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     generationConfig: { maxOutputTokens: 400, temperature: 0.55 },
   });
   const result = await model.generateContent(prompt);
@@ -90,6 +90,57 @@ const SimExplainer: FC<Props> = ({
 }) => {
   const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
+  const [narrating, setNarrating] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    setNarrating(false);
+  };
+
+  const narrate = async () => {
+    if (!summary || loading) return;
+    if (audioRef.current) {
+      stopAudio();
+      return;
+    }
+    setNarrating(true);
+    try {
+      const res = await fetch("/narrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: summary }),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        console.error("narrate failed:", msg);
+        setNarrating(false);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.addEventListener("ended", () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setNarrating(false);
+      });
+      audio.addEventListener("error", () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setNarrating(false);
+      });
+      await audio.play();
+    } catch (e) {
+      console.error("narrate error:", e);
+      setNarrating(false);
+    }
+  };
 
   const peakInfected = Math.max(...history, 0);
   const finalInfected = agents.filter((a) => a.state === "I").length;
@@ -118,6 +169,7 @@ const SimExplainer: FC<Props> = ({
   useEffect(() => {
     if (!open) {
       setSummary("");
+      stopAudio();
       return;
     }
     let alive = true;
@@ -208,7 +260,19 @@ const SimExplainer: FC<Props> = ({
               </div>
 
               <div className="explain-panel__section">
-                <p className="explain-panel__section-label">AI summary (Gemini)</p>
+                <div className="explain-panel__section-header">
+                  <p className="explain-panel__section-label">AI summary</p>
+                  <button
+                    type="button"
+                    className="explain-narrate-btn"
+                    onClick={narrate}
+                    disabled={loading || !summary}
+                    aria-label={narrating ? "Stop narration" : "Narrate summary"}
+                    title={narrating ? "Stop narration" : "Narrate summary"}
+                  >
+                    {narrating ? "⏹ Stop" : "🔊 Listen"}
+                  </button>
+                </div>
                 {loading ? (
                   <p className="explain-panel__loading">Generating summary…</p>
                 ) : (

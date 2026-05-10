@@ -8,3 +8,6 @@ scipy
 joblib
 mesa
 google-genai
+elevenlabs
+python-dotenv
+SALib
