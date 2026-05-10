@@ -192,11 +192,17 @@ const SimExplainer: FC<Props> = ({
       })
       .catch((err: Error) => {
         if (!alive) return;
-        setSummary(
-          err.message.includes("429")
-            ? "Rate limit reached — wait a minute and open Explain again."
-            : "Unable to generate summary. Check VITE_GEMINI_API_KEY in .env.local.",
-        );
+        const msg = err?.message ?? String(err);
+        console.error("[SimExplainer] Gemini error:", err);
+        if (msg.includes("429")) {
+          setSummary("Rate limit reached — wait a minute and open Explain again.");
+        } else if (msg.includes("API_KEY") || msg.includes("API key")) {
+          setSummary("API key missing or invalid. Check VITE_GEMINI_API_KEY in frontend/.env.local and restart Vite.");
+        } else if (msg.includes("404") || msg.includes("not found")) {
+          setSummary("Model not available on this account. Try a different Gemini model.");
+        } else {
+          setSummary(`Summary failed: ${msg.slice(0, 200)}`);
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);

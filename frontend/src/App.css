@@ -841,7 +841,7 @@ main {
   border-radius: 10px;
   padding: 0.6rem 0.7rem 0.5rem;
   z-index: 1;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .infection-graph__header {
@@ -925,6 +925,87 @@ main {
 .infection-graph__deaths {
   color: rgba(195, 200, 210, 0.78);
   font-weight: 500;
+}
+
+.infection-graph__scrubber {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.infection-graph__scrubber input[type="range"] {
+  width: 100%;
+  height: 14px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  margin: 0;
+}
+
+.infection-graph__scrubber input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(248, 113, 113, 0.55) 0%,
+    rgba(248, 113, 113, 0.18) 100%
+  );
+}
+
+.infection-graph__scrubber input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(248, 113, 113, 0.55) 0%,
+    rgba(248, 113, 113, 0.18) 100%
+  );
+  border: none;
+}
+
+.infection-graph__scrubber input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fbbf24;
+  border: 2px solid #0e0e10;
+  margin-top: -3.5px;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.55);
+  cursor: grab;
+}
+
+.infection-graph__scrubber input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fbbf24;
+  border: 2px solid #0e0e10;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.55);
+  cursor: grab;
+}
+
+.infection-graph__scrubber input[type="range"]:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.infection-graph__readout {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  color: rgba(180, 188, 200, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.infection-graph__readout strong {
+  color: #fbbf24;
+  font-weight: 600;
 }
 
 .sim-rerun-btn {

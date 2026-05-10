@@ -4,20 +4,28 @@ const MASK_EFFECTIVENESS = 0.65;
 const TICKS_PER_DAY = 4;
 
 // Per-virus disease parameters (mirrors abm_simulator/simulator.py DISEASE_PRESETS).
-// These calibrate the spatial sim to roughly match the surrogate's predictions.
-// covid_wuhan is the reference: R0=2.5, infectious_period=10d → P=0.0012, 480 ticks.
+// Calibrated so the collision-based spatial sim reproduces the surrogate's
+// Monte Carlo curves as closely as possible while still being a real ABM:
+//
+//   • Recovery ticks = infectious_period × TICKS_PER_DAY (real time, no scaling)
+//   • Infection prob calibrated so β/γ ≈ R0 given typical neighbor density
+//     (3000 agents in 1000×600 px world, ~7.6 neighbors per radius-22 circle,
+//      4 ticks/day → ~30 candidate-checks/day; infection_prob × 30 ≈ R0/infectious)
+//   • Vaccination = vaccination_rate × vaccination_effectiveness (Mesa uses
+//     reduced-transmission to vaccinated; we approximate as effective immunity)
+//   • Mortality includes population-weighted age multiplier ≈ 1.97 (matches
+//     simulator's AGE_MORTALITY_MULTIPLIER × AGE_DISTRIBUTION)
 const REF_R0 = 2.5;
-const REF_INFECTIOUS = 10;
-const REF_INFECTION_PROB = 0.0012;
-const REF_RECOVERY_TICKS = 480;
+const REF_INFECTION_PROB = 0.008;
+const AGE_MORTALITY_FACTOR = 1.97;
 
 const VIRUS_PARAMS = {
-  covid_wuhan:           { r0: 2.5, infectious_period: 10, mortality: 0.005 },
-  hantavirus_andes:      { r0: 1.3, infectious_period: 10, mortality: 0.35 },
-  h1n1_swine_flu:        { r0: 1.6, infectious_period: 7,  mortality: 0.00015 },
-  human_metapneumovirus: { r0: 2.5, infectious_period: 8,  mortality: 0.004 },
-  influenza_a_h3n2:      { r0: 1.4, infectious_period: 6,  mortality: 0.001 },
-  spanish_flu:           { r0: 2.2, infectious_period: 7,  mortality: 0.013 },
+  covid_wuhan:           { r0: 2.5, infectious_period: 10, mortality: 0.005,   vacc_eff: 0.875 },
+  hantavirus_andes:      { r0: 1.3, infectious_period: 10, mortality: 0.35,    vacc_eff: 0.0   },
+  h1n1_swine_flu:        { r0: 1.6, infectious_period: 7,  mortality: 0.00015, vacc_eff: 0.7   },
+  human_metapneumovirus: { r0: 2.5, infectious_period: 8,  mortality: 0.004,   vacc_eff: 0.0   },
+  influenza_a_h3n2:      { r0: 1.4, infectious_period: 6,  mortality: 0.001,   vacc_eff: 0.38  },
+  spanish_flu:           { r0: 2.2, infectious_period: 7,  mortality: 0.013,   vacc_eff: 0.0   },
 };
 const DEFAULT_VIRUS = VIRUS_PARAMS.covid_wuhan;
 
@@ -31,10 +39,20 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
 
   const vp = (virusId && VIRUS_PARAMS[virusId]) || DEFAULT_VIRUS;
 
-  // Calibrate base infection probability to virus R0 (relative to covid_wuhan).
-  // Recovery ticks scale with infectious_period.
-  const baseInfectionProb = REF_INFECTION_PROB * (vp.r0 / REF_R0);
-  const recoveryTicks = REF_RECOVERY_TICKS * (vp.infectious_period / REF_INFECTIOUS);
+  // Calibrate per-tick infection probability so β = R0/infectious_period matches
+  // the surrogate's epidemiological model. Both R0 AND infectious_period matter:
+  // a 6-day virus needs HIGHER per-tick probability than a 10-day one at the
+  // same R0, because there are fewer ticks to spread before recovery.
+  //
+  //   β_target = R0 / infectious_period (per day)
+  //   per-tick prob ∝ β / (TICKS_PER_DAY × avg_neighbors_per_tick)
+  //
+  // Reference: covid_wuhan (R0=2.5, infectious=10) → REF_INFECTION_PROB.
+  const baseInfectionProb =
+    REF_INFECTION_PROB
+    * (vp.r0 / REF_R0)
+    * (REF_INFECTIOUS / vp.infectious_period);
+  const recoveryTicks = vp.infectious_period * TICKS_PER_DAY;
 
   const currentDay = Math.floor(tickCount / TICKS_PER_DAY);
   const active = currentDay >= intervention_day;
@@ -46,8 +64,12 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
     infectionProb *= (1 - contact_reduction);
   }
 
-  // Vaccination: per-tick probability a susceptible becomes immune
-  const vaccTickProb = active ? vaccination_rate / TICKS_PER_DAY : 0;
+  // Vaccination: effective per-tick immunity rate. Mesa applies vaccination
+  // multiplicatively to transmission for vaccinated agents; we approximate by
+  // reducing the chance of becoming immune by the disease's vaccine effectiveness.
+  const vaccTickProb = active
+    ? (vaccination_rate * vp.vacc_eff) / TICKS_PER_DAY
+    : 0;
 
   const gridW = Math.ceil(world.W / CELL_SIZE);
   const gridH = Math.ceil(world.H / CELL_SIZE);
@@ -75,7 +97,9 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
 
     p.ticksInfected = (p.ticksInfected ?? 0) + 1;
     if (p.ticksInfected >= recoveryTicks) {
-      p.state = Math.random() < vp.mortality ? 'D' : 'R';
+      // Effective mortality includes age-weighted multiplier (matches simulator).
+      const effMortality = Math.min(1, vp.mortality * AGE_MORTALITY_FACTOR);
+      p.state = Math.random() < effMortality ? 'D' : 'R';
       if (p.state === 'D') {
         p.vx = 0;
         p.vy = 0;
@@ -98,6 +122,94 @@ export function tickSimulation(agents, world, intervention = {}, tickCount = 0, 
             other.ticksInfected = 0;
           }
         }
+      }
+    }
+  }
+
+  return agents;
+}
+
+/**
+ * Playback tick: agents move for visual flair, but their state counts (S/I/R/D)
+ * are forced to match per-day targets pre-computed from the Monte Carlo forecast.
+ * The spatial sim becomes a visualization of the surrogate's prediction.
+ *
+ * @param {Array} agents
+ * @param {{W:number, H:number}} world
+ * @param {{I:number, R:number, D:number}} target  cumulative target counts
+ */
+export function scriptedTick(agents, world, target) {
+  // Movement (skip dead)
+  for (const p of agents) {
+    if (p.state === 'D') continue;
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x <= 0 || p.x >= world.W) { p.vx *= -1; p.x = Math.max(0, Math.min(world.W, p.x)); }
+    if (p.y <= 0 || p.y >= world.H) { p.vy *= -1; p.y = Math.max(0, Math.min(world.H, p.y)); }
+  }
+
+  // Tally current counts
+  let curS = 0, curI = 0, curR = 0, curD = 0;
+  for (const p of agents) {
+    if (p.state === 'S') curS++;
+    else if (p.state === 'I') curI++;
+    else if (p.state === 'R') curR++;
+    else curD++;
+  }
+
+  const tgtI = Math.max(0, Math.round(target.I));
+  const tgtR = Math.max(0, Math.round(target.R));
+  const tgtD = Math.max(0, Math.round(target.D));
+
+  // 1) Promote to D first (cumulative — only grows). Prefer killing existing
+  // infected over recovered (dies after being sick).
+  let needD = Math.max(0, tgtD - curD);
+  if (needD > 0) {
+    for (const p of agents) {
+      if (needD <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'D'; p.vx = 0; p.vy = 0;
+        needD--; curI--; curD++;
+      }
+    }
+    for (const p of agents) {
+      if (needD <= 0) break;
+      if (p.state === 'R') {
+        p.state = 'D'; p.vx = 0; p.vy = 0;
+        needD--; curR--; curD++;
+      }
+    }
+  }
+
+  // 2) Promote to R (cumulative — only grows): I → R for any excess infected
+  let needR = Math.max(0, tgtR - curR);
+  if (needR > 0) {
+    for (const p of agents) {
+      if (needR <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'R'; needR--; curI--; curR++;
+      }
+    }
+  }
+
+  // 3) Reconcile I to target (S → I if too few; I → R if too many)
+  if (curI < tgtI) {
+    let need = tgtI - curI;
+    for (const p of agents) {
+      if (need <= 0) break;
+      if (p.state === 'S') {
+        p.state = 'I';
+        p.ticksInfected = 0;
+        need--; curS--; curI++;
+      }
+    }
+  } else if (curI > tgtI) {
+    let drop = curI - tgtI;
+    for (const p of agents) {
+      if (drop <= 0) break;
+      if (p.state === 'I') {
+        p.state = 'R';
+        drop--; curI--; curR++;
       }
     }
   }

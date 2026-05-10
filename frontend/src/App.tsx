@@ -13,7 +13,7 @@ import { WORLD, TICKS_PER_DAY } from "./simulation/constant";
 // @ts-ignore
 import { initAgents } from "./simulation/initAgents";
 // @ts-ignore
-import { tickSimulation } from "./simulation/tickSimulation";
+import { scriptedTick } from "./simulation/tickSimulation";
 import InfectionGraph from "./InfectionGraph";
 import SimExplainer, { type SobolExplainContext } from "./SimExplainer";
 import "./App.css";
@@ -71,6 +71,35 @@ function scaleMcResult(out: PredictMcResponse): PredictMcResponse {
       },
     },
   };
+}
+
+// Build a per-day schedule of cumulative target counts (I, R, D) for the
+// playback layer. Inputs are already scaled to the spatial sim's 3k population.
+//
+// Cumulative cases at day t are estimated by integrating active infections
+// weighted to end at total_cases (each day contributes proportionally to
+// active infections that day — close enough for visualization).
+function buildPlaybackSchedule(
+  trajectory: number[],
+  totalCases: number,
+  totalDeaths: number,
+): Array<{ I: number; R: number; D: number }> {
+  const cumActive: number[] = [];
+  let acc = 0;
+  for (const v of trajectory) {
+    acc += Math.max(0, v);
+    cumActive.push(acc);
+  }
+  const totalActive = acc || 1;
+
+  return trajectory.map((active, t) => {
+    const fraction = cumActive[t] / totalActive;
+    const cumCases = totalCases * fraction;
+    const cumD = totalDeaths * fraction;
+    const I = Math.max(0, active);
+    const cumR = Math.max(0, cumCases - I - cumD);
+    return { I, R: cumR, D: cumD };
+  });
 }
 
 const SUMMARY_LABELS: Record<string, string> = {
@@ -161,13 +190,35 @@ export default function App() {
   const [deaths, setDeaths] = useState(0);
   const [day, setDay] = useState(0);
 
+  // Per-day schedule of cumulative target counts derived from MC result.
+  // schedule[t] = {I, R, D} for day t in 3000-person scaled space.
+  const playbackScheduleRef = useRef<Array<{ I: number; R: number; D: number }> | null>(null);
+
+  // Whenever predictResult changes, build a per-day schedule for the playback layer.
+  useEffect(() => {
+    if (!predictResult) {
+      playbackScheduleRef.current = null;
+      return;
+    }
+    const mc = predictResult.monte_carlo;
+    const traj = mc.trajectory_percentiles.p50;
+    const totalCases = mc.summary_percentiles.total_cases?.p50 ?? 0;
+    const totalDeaths = mc.summary_percentiles.total_deaths?.p50 ?? 0;
+    playbackScheduleRef.current = buildPlaybackSchedule(traj, totalCases, totalDeaths);
+  }, [predictResult]);
+
   const tick = useCallback(() => {
     const pts = agentsRef.current;
-    const intr = interventionRef.current;
-    const v = virusRef.current;
-    tickSimulation(pts, WORLD, intr, tickCountRef.current, v);
+    const schedule = playbackScheduleRef.current;
+    const currentDayBefore = Math.floor(tickCountRef.current / TICKS_PER_DAY);
+    const target = schedule
+      ? schedule[Math.min(currentDayBefore, schedule.length - 1)]
+      : { I: 0, R: 0, D: 0 };
+    scriptedTick(pts, WORLD, target);
     tickCountRef.current += 1;
-    tickSimulation(pts, WORLD, intr, tickCountRef.current, v);
+    scriptedTick(pts, WORLD, schedule
+      ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
+      : { I: 0, R: 0, D: 0 });
     agentsRef.current = [...pts];
     tickCountRef.current += 1;
 
@@ -200,8 +251,6 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
 
-  const autoForecastedRef = useRef(false);
-
   const rerunSpatialSimulation = useCallback(() => {
     const next = initAgents(3000, WORLD);
     agentsRef.current = next;
@@ -214,7 +263,6 @@ export default function App() {
     setIsRunning(false);
     setExplainOpen(false);
     setPredictResult(null);
-    autoForecastedRef.current = false;
   }, []);
 
   const returnToLanding = useCallback(() => {
@@ -283,16 +331,9 @@ export default function App() {
 
   const spatialSimComplete = day >= 365 && !isRunning;
 
-  // Auto-run the surrogate (MC + Sobol) the first time the spatial sim finishes
-  // for this run. Reset by `rerunSpatialSimulation`, so each rerun triggers a
-  // fresh forecast without the user having to click the button.
-  useEffect(() => {
-    if (!spatialSimComplete) return;
-    if (autoForecastedRef.current) return;
-    if (simLoading) return;
-    autoForecastedRef.current = true;
-    runSimulation();
-  }, [spatialSimComplete, simLoading, runSimulation]);
+  // MC forecast now runs before the spatial animation (driven by Start
+  // Simulation), so the spatial sim plays back the surrogate's prediction.
+  // No auto-rerun on completion needed.
 
   return (
     <div
@@ -555,10 +596,23 @@ export default function App() {
                   <button
                     type="button"
                     className="sim-start-btn"
-                    onClick={() => setIsRunning(true)}
+                    disabled={simLoading}
+                    onClick={async () => {
+                      // Always re-run Monte Carlo so the playback reflects the
+                      // current virus + slider settings.
+                      try {
+                        await runSimulation();
+                      } catch {
+                        return;
+                      }
+                      setIsRunning(true);
+                    }}
                   >
-                    Start Simulation
+                    {simLoading ? "Running forecast…" : "Start Simulation"}
                   </button>
+                  {simError && (
+                    <p className="mc-error" role="alert" style={{ marginTop: 12 }}>{simError}</p>
+                  )}
                 </div>
               )}
             </div>

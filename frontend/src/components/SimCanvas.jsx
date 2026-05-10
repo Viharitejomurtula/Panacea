@@ -51,23 +51,29 @@ export default function SimCanvas({ agents, diseaseColor }) {
     getPosition: (d) => toLngLat(d.x, d.y),
     getRadius: (d) => {
       if (d.state === 'I') return 7;
-      if (d.state === 'D') return 4;
+      if (d.state === 'D') return 6;
       return 5;
     },
     getFillColor: (d) => {
       if (d.state === 'S') return [147, 197, 253, 200];
       if (d.state === 'I') return diseaseColor;
       if (d.state === 'R') return [74, 222, 128, 180];
-      if (d.state === 'D') return [120, 0, 0, 230];
+      if (d.state === 'D') return [40, 40, 50, 250];
       return [50, 60, 80, 160];
     },
+    getLineColor: (d) =>
+      d.state === 'D' ? [220, 38, 38, 255] : [0, 0, 0, 0],
+    getLineWidth: (d) => (d.state === 'D' ? 1.6 : 0),
+    lineWidthUnits: 'pixels',
     radiusUnits: 'pixels',
     radiusMinPixels: 3,
-    stroked: false,
+    stroked: true,
     pickable: false,
     updateTriggers: {
       getFillColor: agents,
       getRadius: agents,
+      getLineColor: agents,
+      getLineWidth: agents,
     },
   });
 

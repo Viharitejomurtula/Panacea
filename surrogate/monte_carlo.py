@@ -153,6 +153,48 @@ def sample_input_matrix(
     return rows
 
 
+# Population-weighted age-mortality multiplier from abm_simulator/simulator.py:
+#   AGE_DISTRIBUTION × AGE_MORTALITY_MULTIPLIER
+#   = 0.05·0.05 + 0.20·0.05 + 0.64·1.0 + 0.11·12.0 ≈ 1.97
+# Used to derive total_deaths consistently with attack_rate × disease mortality.
+AGE_MORTALITY_FACTOR = 1.9725
+
+
+def _reconcile_summary(
+    summary: np.ndarray,
+    trajectory: np.ndarray,
+    X: np.ndarray,
+    population: float,
+    hospital_capacity_per_100k: float,
+) -> np.ndarray:
+    """Override surrogate outputs that can be derived consistently from the
+    most reliable predictions (``attack_rate``, the daily trajectory, and the
+    sampled disease parameters in ``X``).
+
+    The surrogate predicts each output head independently — without this step
+    the user sees inconsistencies like ``attack_rate=0.094`` alongside
+    ``total_cases=23``, or H1N1 deaths of 30 when CFR predicts under 1.
+    """
+    summary = summary.copy()
+    idx = {name: i for i, name in enumerate(OUTPUT_COLS)}
+    in_idx = {name: i for i, name in enumerate(INPUT_COLS)}
+    hospital_beds = hospital_capacity_per_100k * population / 100_000.0
+
+    attack = np.clip(summary[:, idx["attack_rate"]], 0.0, 1.0)
+    mortality = X[:, in_idx["mortality_rate"]].astype(np.float64)
+
+    summary[:, idx["peak_cases"]] = trajectory.max(axis=1)
+    summary[:, idx["peak_day"]] = trajectory.argmax(axis=1).astype(np.float64)
+    summary[:, idx["total_cases"]] = attack * population
+    summary[:, idx["total_deaths"]] = (
+        attack * population * mortality * AGE_MORTALITY_FACTOR
+    )
+    summary[:, idx["days_over_hospital_capacity"]] = (
+        (trajectory > hospital_beds).sum(axis=1).astype(np.float64)
+    )
+    return summary
+
+
 def run_monte_carlo(
     surrogate: Surrogate,
     virus_id: str,
@@ -164,7 +206,13 @@ def run_monte_carlo(
     rng = np.random.default_rng(seed)
     X = sample_input_matrix(virus_id, intervention, n_runs, rng)
     batch = surrogate.predict_batch(X)
-    summary = batch["summary"]
+    summary = _reconcile_summary(
+        batch["summary"],
+        batch["trajectory"],
+        X,
+        population=FIXED_POPULATION,
+        hospital_capacity_per_100k=FIXED_HOSPITAL_CAPACITY_SLIDER,
+    )
     trajectory = batch["trajectory"]
 
     out_summary: dict[str, dict[str, float]] = {}
