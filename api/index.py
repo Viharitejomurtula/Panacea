@@ -11,7 +11,6 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
 from pydantic import BaseModel, model_validator
 
 # ---------------------------------------------------------------------------
@@ -127,8 +126,3 @@ def predict(body: PredictRequest) -> PredictResponse:
     raise HTTPException(status_code=503, detail="Model not yet deployed — training in progress.")
 
 
-# ---------------------------------------------------------------------------
-# Vercel entry point
-# ---------------------------------------------------------------------------
-
-handler = Mangum(app, lifespan="off")
