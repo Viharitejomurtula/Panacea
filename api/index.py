@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from pydantic import BaseModel, model_validator
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,9 @@ def get_schema() -> dict[str, Any]:
         "n_trajectory_days": N_TRAJECTORY_DAYS,
         "input_ranges": {k: list(v) for k, v in INPUT_RANGES.items()},
     }
+
+
+handler = Mangum(app, lifespan="off")
 
 
 @app.post("/api/predict", response_model=PredictResponse)
