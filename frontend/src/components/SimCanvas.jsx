@@ -63,7 +63,7 @@ export default function SimCanvas({ agents, diseaseColor }) {
     },
     getLineColor: (d) =>
       d.state === 'D' ? [220, 38, 38, 255] : [0, 0, 0, 0],
-    getLineWidth: (d) => (d.state === 'D' ? 1.6 : 0),
+    getLineWidth: (d) => (d.state === 'D' ? 1.15 : 0),
     lineWidthUnits: 'pixels',
     radiusUnits: 'pixels',
     radiusMinPixels: 3,
