@@ -235,16 +235,7 @@ export default function App() {
       : { I: 0, R: 0, D: 0 };
     scriptedTick(pts, WORLD, target, ceiling);
     tickCountRef.current += 1;
-    scriptedTick(
-      pts,
-      WORLD,
-      schedule
-        ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
-        : { I: 0, R: 0, D: 0 },
-      ceiling,
-    );
     agentsRef.current = [...pts];
-    tickCountRef.current += 1;
 
     const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
 
@@ -334,6 +325,29 @@ export default function App() {
 
   const resetSliders = () =>
     setIntervention({ ...DEFAULT_USER_INTERVENTION });
+
+  const [interventionInfoKey, setInterventionInfoKey] =
+    useState<SliderKey | null>(null);
+  const sliderStackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (interventionInfoKey === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setInterventionInfoKey(null);
+    };
+    const onDown = (e: MouseEvent) => {
+      const el = sliderStackRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setInterventionInfoKey(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [interventionInfoKey]);
 
   const introDone = introPhase === "gone";
   const landing = VIRUS_LANDING[virus];
@@ -539,16 +553,64 @@ export default function App() {
 
             <fieldset className="slider-fieldset">
               <legend className="slider-legend">Interventions</legend>
-              <div className="slider-stack">
+              <div ref={sliderStackRef} className="slider-stack">
                 {INTERVENTION_SLIDERS.map(
-                  ({ key, label, min, max, step, format }) => (
+                  ({ key, label, description, min, max, step, format }) => (
                     <div key={key} className="slider-row">
                       <div className="slider-row-header">
-                        <span className="slider-label">{label}</span>
+                        <span className="slider-label-row">
+                          <span className="slider-label">{label}</span>
+                          <button
+                            type="button"
+                            className={`slider-info-btn ${
+                              interventionInfoKey === key
+                                ? "slider-info-btn--open"
+                                : ""
+                            }`}
+                            aria-label={`About ${label}`}
+                            aria-expanded={interventionInfoKey === key}
+                            onClick={() =>
+                              setInterventionInfoKey((k) =>
+                                k === key ? null : key,
+                              )
+                            }
+                          >
+                            <svg
+                              className="slider-info-btn__icon"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 12 12"
+                              aria-hidden
+                            >
+                              <circle
+                                cx="6"
+                                cy="6"
+                                r="4.75"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.1"
+                              />
+                              <circle cx="6" cy="3.35" r="0.55" fill="currentColor" />
+                              <path
+                                fill="currentColor"
+                                d="M5.35 5.15h1.3v4.1h-1.3z"
+                              />
+                            </svg>
+                          </button>
+                        </span>
                         <span className="slider-value">
                           {format(intervention[key])}
                         </span>
                       </div>
+                      {interventionInfoKey === key ? (
+                        <p
+                          className="slider-info-panel"
+                          id={`slider-info-${key}`}
+                          role="tooltip"
+                        >
+                          {description}
+                        </p>
+                      ) : null}
                       <input
                         type="range"
                         className="slider-input"
@@ -562,6 +624,12 @@ export default function App() {
                         aria-valuemin={min}
                         aria-valuemax={max}
                         aria-valuenow={intervention[key]}
+                        aria-label={label}
+                        aria-describedby={
+                          interventionInfoKey === key
+                            ? `slider-info-${key}`
+                            : undefined
+                        }
                       />
                     </div>
                   ),

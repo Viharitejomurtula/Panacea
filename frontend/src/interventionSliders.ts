@@ -43,6 +43,8 @@ export function fullIntervention(
 export const INTERVENTION_SLIDERS: {
   key: SliderKey;
   label: string;
+  /** Shown on hover (native tooltip). */
+  description: string;
   min: number;
   max: number;
   step: number;
@@ -51,6 +53,8 @@ export const INTERVENTION_SLIDERS: {
   {
     key: "intervention_day",
     label: "Intervention day",
+    description:
+      "Simulation day when masks, distancing, and vaccination rollout take effect. 0 means policies are on from the start.",
     min: 0,
     max: 60,
     step: 1,
@@ -59,6 +63,8 @@ export const INTERVENTION_SLIDERS: {
   {
     key: "mask_compliance",
     label: "Mask compliance",
+    description:
+      "Percent of people wearing masks when policy is in effect (0–1).",
     min: 0,
     max: 1,
     step: 0.01,
@@ -67,6 +73,8 @@ export const INTERVENTION_SLIDERS: {
   {
     key: "vaccination_rate",
     label: "Vaccination rate",
+    description:
+      "Each day after interventions start, each still-susceptible person gets this chance (0–1) of receiving a vaccine dose.",
     min: 0,
     max: 1,
     step: 0.001,
@@ -75,6 +83,8 @@ export const INTERVENTION_SLIDERS: {
   {
     key: "contact_reduction",
     label: "Contact reduction",
+    description:
+      "Fraction of normal social contacts removed after interventions (closures, distancing). 0 = none, higher = fewer meetings.",
     min: 0,
     max: 0.9,
     step: 0.01,
