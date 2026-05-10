@@ -1,8 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 
-const SimExplainer: FC = () => {
+interface Props {
+  history: number[];
+  agents: any[];
+  total: number;
+  virusLabel: string;
+}
+
+// Set VITE_GEMINI_API_KEY in .env.local
+const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
+
+async function fetchSummary(p: {
+  total: number;
+  peakInfected: number;
+  finalInfected: number;
+  finalRecovered: number;
+  finalSusceptible: number;
+  virusLabel: string;
+}): Promise<string> {
+  if (!API_KEY) {
+    return 'Add VITE_GEMINI_API_KEY to a .env.local file in the frontend folder to enable AI-generated summaries.';
+  }
+
+  const peakPct = ((p.peakInfected / p.total) * 100).toFixed(1);
+  const recoveredPct = ((p.finalRecovered / p.total) * 100).toFixed(1);
+
+  const prompt = `You are summarizing an epidemic simulation for a general audience. Write exactly 3 clear, specific sentences about what happened. Use the numbers provided.
+
+Simulation facts:
+- Disease: ${p.virusLabel}
+- Population: ${p.total.toLocaleString()} people in a single suburb
+- Duration: 365 simulated days
+- Peak simultaneous infections: ${p.peakInfected.toLocaleString()} people (${peakPct}% of the population)
+- End state: ${p.finalInfected.toLocaleString()} still infected, ${p.finalRecovered.toLocaleString()} recovered (${recoveredPct}%), ${p.finalSusceptible.toLocaleString()} never infected
+
+Rules: no bullet points, no headers, scientific but accessible tone, start with "Over the course of 365 days,"`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: 200, temperature: 0.6 },
+  });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+  let res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, 3000));
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+  }
+
+  if (!res.ok) throw new Error(`Gemini ${res.status}`);
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? 'Summary unavailable.';
+}
+
+const SimExplainer: FC<Props> = ({ history, agents, total, virusLabel }) => {
   const [expanded, setExpanded] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const peakInfected = Math.max(...history, 0);
+  const finalInfected = agents.filter((a) => a.state === 'I').length;
+  const finalRecovered = agents.filter((a) => a.state === 'R').length;
+  const finalSusceptible = agents.filter((a) => a.state === 'S').length;
+
+  useEffect(() => {
+    if (!expanded || summary || loading) return;
+    setLoading(true);
+    fetchSummary({ total, peakInfected, finalInfected, finalRecovered, finalSusceptible, virusLabel })
+      .then(setSummary)
+      .catch((err: Error) => setSummary(
+        err.message.includes('429')
+          ? 'Rate limit reached — wait a moment and re-open this panel to retry.'
+          : 'Unable to generate summary. Check your VITE_GEMINI_API_KEY in .env.local.'
+      ))
+      .finally(() => setLoading(false));
+  }, [expanded]);
 
   if (!expanded) {
     return (
@@ -35,13 +109,11 @@ const SimExplainer: FC = () => {
 
       <div className="explain-panel__section">
         <p className="explain-panel__section-label">Summary</p>
-        <p className="explain-panel__body">
-          Over the 365-day simulation period, the pathogen spread through the population
-          following a classic epidemic curve — slow initial growth, rapid acceleration
-          as infectious contacts compounded, a sharp peak, then gradual decline as the
-          susceptible pool was depleted through recovery and acquired immunity. A full
-          AI-generated narrative will appear here via the Gemini API.
-        </p>
+        {loading ? (
+          <p className="explain-panel__loading">Generating summary…</p>
+        ) : (
+          <p className="explain-panel__body">{summary}</p>
+        )}
       </div>
 
       <div className="explain-panel__section">

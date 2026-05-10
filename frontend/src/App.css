@@ -825,7 +825,7 @@ main {
   bottom: 1.25rem;
   right: 1.25rem;
   z-index: 5;
-  width: 420px;
+  width: 540px;
   background: rgba(10, 12, 18, 0.97);
   backdrop-filter: blur(18px);
   border: 1px solid #2a2e3a;
@@ -841,7 +841,7 @@ main {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.25rem 1.35rem 1.1rem;
+  padding: 1.4rem 1.5rem 1.2rem;
   background: linear-gradient(135deg, rgba(110, 168, 254, 0.07) 0%, transparent 55%);
   border-bottom: 1px solid #2a2e3a;
 }
@@ -875,7 +875,7 @@ main {
 
 .explain-panel__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
@@ -905,7 +905,7 @@ main {
 }
 
 .explain-panel__section {
-  padding: 1rem 1.35rem;
+  padding: 1.1rem 1.5rem;
   border-bottom: 1px solid #2a2e3a;
 }
 
@@ -924,9 +924,22 @@ main {
 
 .explain-panel__body {
   margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.7;
+  font-size: 0.92rem;
+  line-height: 1.75;
   color: #b0b7c3;
+}
+
+.explain-panel__loading {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  animation: pulse-opacity 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1;   }
 }
 
 .explain-panel__factor-card {
@@ -958,7 +971,7 @@ main {
 }
 
 .explain-panel__factor-name {
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
   line-height: 1;
@@ -974,7 +987,7 @@ main {
 
 .explain-panel__factor-desc {
   margin: 0;
-  font-size: 0.74rem;
-  line-height: 1.6;
+  font-size: 0.82rem;
+  line-height: 1.65;
   color: var(--text-muted);
 }

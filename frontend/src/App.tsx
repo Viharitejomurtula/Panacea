@@ -295,7 +295,14 @@ export default function App() {
               diseaseColor={[248, 113, 113, 220]}
             />
             <InfectionGraph history={history} total={3000} day={day} />
-            {day >= 365 && <SimExplainer />}
+            {day >= 365 && (
+              <SimExplainer
+                history={history}
+                agents={agents}
+                total={3000}
+                virusLabel={VIRUS_OPTIONS.find((v) => v.id === virus)?.label ?? virus}
+              />
+            )}
             {!isRunning && (
               <div className="sim-overlay">
                 <button
