@@ -34,6 +34,14 @@ OUTPUT_COLS = [
     "attack_rate",
 ]
 
+# Per-day active-infected count. The simulator runs at most N_TRAJECTORY_DAYS
+# steps; if the outbreak ends earlier the trailing entries are zero.
+N_TRAJECTORY_DAYS = 365
+TRAJECTORY_COLS = [f"infected_d{i}" for i in range(N_TRAJECTORY_DAYS)]
+
+# Full output vector the surrogate predicts: 6 summaries + 365 daily counts.
+ALL_OUTPUT_COLS = OUTPUT_COLS + TRAJECTORY_COLS
+
 # Plausible ranges for synthetic data + sanity-checking real CSVs.
 # (lower, upper) inclusive. Used only by make_synthetic.py and validation.
 INPUT_RANGES = {

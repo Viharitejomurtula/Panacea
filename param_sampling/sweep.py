@@ -16,7 +16,7 @@ import pandas as pd
 
 from abm_simulator.runner import run_one
 from param_sampling.lhs import sample, to_dicts
-from surrogate.schema import INPUT_COLS, OUTPUT_COLS
+from surrogate.schema import ALL_OUTPUT_COLS, INPUT_COLS
 
 
 def _run_indexed(args: tuple[int, dict, int, int]) -> tuple[int, dict]:
@@ -59,7 +59,7 @@ def main() -> None:
                 if done % max(1, len(tasks) // 20) == 0:
                     print(f"  {done}/{len(tasks)}  ({time.time() - t0:.1f}s)")
 
-    df = pd.DataFrame(rows, columns=INPUT_COLS + OUTPUT_COLS)
+    df = pd.DataFrame(rows, columns=INPUT_COLS + ALL_OUTPUT_COLS)
     df.to_csv(args.out, index=False)
     print(f"wrote {len(df)} rows to {args.out} in {time.time() - t0:.1f}s")
 

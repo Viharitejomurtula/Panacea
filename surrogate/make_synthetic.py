@@ -15,7 +15,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .schema import INPUT_COLS, INPUT_RANGES, OUTPUT_COLS
+from .schema import (
+    INPUT_COLS,
+    INPUT_RANGES,
+    N_TRAJECTORY_DAYS,
+    OUTPUT_COLS,
+    TRAJECTORY_COLS,
+)
 
 
 def sample_inputs(n: int, rng: np.random.Generator) -> pd.DataFrame:
@@ -87,6 +93,18 @@ def fake_outputs(X: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     return out
 
 
+def fake_trajectories(X: pd.DataFrame, Y: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """Bell-shaped curves keyed off peak_cases / peak_day (toy SEIR shape)."""
+    days = np.arange(N_TRAJECTORY_DAYS)
+    peak_d = Y["peak_day"].to_numpy()[:, None]
+    peak_c = Y["peak_cases"].to_numpy()[:, None]
+    width  = (8.0 + 4.0 * X["incubation_period"].to_numpy())[:, None]
+    curves = peak_c * np.exp(-((days[None, :] - peak_d) ** 2) / (2.0 * width ** 2))
+    curves = curves * rng.normal(1.0, 0.05, size=curves.shape)
+    curves = np.clip(curves, 0.0, None)
+    return pd.DataFrame(curves, columns=TRAJECTORY_COLS)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=2000)
@@ -97,7 +115,8 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     X = sample_inputs(args.n, rng)
     Y = fake_outputs(X, rng)
-    df = pd.concat([X, Y], axis=1)
+    T = fake_trajectories(X, Y, rng)
+    df = pd.concat([X, Y, T], axis=1)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False)

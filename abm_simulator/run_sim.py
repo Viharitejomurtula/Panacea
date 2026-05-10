@@ -21,7 +21,7 @@ if __name__ == "__main__":
 	p.add_argument("--disease", type=str, default="covid_wuhan")
 	p.add_argument("--pop",     type=int, default=100)
 	p.add_argument("--infected",type=int, default=3)
-	p.add_argument("--days",    type=int, default=60)
+	p.add_argument("--days",    type=int, default=365)
 	args = p.parse_args()
 
 	run_sim(args.disease, args.pop, args.infected, args.days)

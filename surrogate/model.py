@@ -4,15 +4,15 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from .schema import N_INPUTS, N_OUTPUTS
+from .schema import ALL_OUTPUT_COLS, N_INPUTS
 
 
 class SurrogateMLP(nn.Module):
     def __init__(
         self,
         in_dim: int = N_INPUTS,
-        out_dim: int = N_OUTPUTS,
-        hidden: tuple[int, ...] = (128, 128, 64),
+        out_dim: int = len(ALL_OUTPUT_COLS),
+        hidden: tuple[int, ...] = (256, 256, 256),
         dropout: float = 0.1,
     ) -> None:
         super().__init__()

@@ -18,14 +18,16 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
-from .schema import INPUT_COLS, OUTPUT_COLS
+from .schema import ALL_OUTPUT_COLS, INPUT_COLS, OUTPUT_COLS, TRAJECTORY_COLS
 
 # Outputs that should be log1p'd before scaling (counts, durations).
+# All trajectory columns are active-infected counts → log1p them too.
 LOG_OUTPUTS = {
     "peak_cases",
     "total_cases",
     "total_deaths",
     "days_over_hospital_capacity",
+    *TRAJECTORY_COLS,
 }
 
 
@@ -33,7 +35,7 @@ LOG_OUTPUTS = {
 class Scalers:
     x: StandardScaler
     y: StandardScaler
-    log_mask: np.ndarray  # bool array over OUTPUT_COLS — which were log1p'd
+    log_mask: np.ndarray  # bool array over ALL_OUTPUT_COLS — which were log1p'd
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +64,7 @@ class Scalers:
 
 def fit_scalers(X_raw: np.ndarray, Y_raw: np.ndarray) -> Scalers:
     x_scaler = StandardScaler().fit(X_raw)
-    log_mask = np.array([c in LOG_OUTPUTS for c in OUTPUT_COLS], dtype=bool)
+    log_mask = np.array([c in LOG_OUTPUTS for c in ALL_OUTPUT_COLS], dtype=bool)
     Y_logged = Y_raw.copy().astype(float)
     Y_logged[:, log_mask] = np.log1p(np.clip(Y_logged[:, log_mask], 0, None))
     y_scaler = StandardScaler().fit(Y_logged)
@@ -71,11 +73,11 @@ def fit_scalers(X_raw: np.ndarray, Y_raw: np.ndarray) -> Scalers:
 
 def load_csv(path: Path) -> tuple[np.ndarray, np.ndarray]:
     df = pd.read_csv(path)
-    missing = [c for c in INPUT_COLS + OUTPUT_COLS if c not in df.columns]
+    missing = [c for c in INPUT_COLS + ALL_OUTPUT_COLS if c not in df.columns]
     if missing:
         raise ValueError(f"CSV {path} is missing required columns: {missing}")
     X = df[INPUT_COLS].to_numpy(dtype=np.float32)
-    Y = df[OUTPUT_COLS].to_numpy(dtype=np.float32)
+    Y = df[ALL_OUTPUT_COLS].to_numpy(dtype=np.float32)
     return X, Y
 
 

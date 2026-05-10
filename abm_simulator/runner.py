@@ -27,7 +27,13 @@ from typing import Iterable, Mapping, Optional
 import pandas as pd
 
 from abm_simulator.simulator import DiseaseModel, DiseaseParams, InfectionState
-from surrogate.schema import INPUT_COLS, OUTPUT_COLS
+from surrogate.schema import (
+    ALL_OUTPUT_COLS,
+    INPUT_COLS,
+    N_TRAJECTORY_DAYS,
+    OUTPUT_COLS,
+    TRAJECTORY_COLS,
+)
 
 DISEASE_PARAM_FIELDS = (
     "r0",
@@ -57,33 +63,39 @@ def _build_model(params: Mapping[str, float], seed: Optional[int]) -> DiseaseMod
 
 def run_one(
     params: Mapping[str, float],
-    n_days: int = 365,
+    n_days: int = N_TRAJECTORY_DAYS,
     seed: Optional[int] = None,
 ) -> dict:
-    """Run a single simulation. Returns a dict containing INPUT_COLS + OUTPUT_COLS."""
+    """Run a single simulation. Returns a dict with INPUT_COLS + ALL_OUTPUT_COLS
+    (the 6 summaries plus per-day active-infected counts)."""
     missing = [c for c in INPUT_COLS if c not in params]
     if missing:
         raise KeyError(f"missing input parameters: {missing}")
 
     model = _build_model(params, seed)
-    for _ in range(n_days):
+    trajectory = [0] * N_TRAJECTORY_DAYS
+    for d in range(n_days):
         model.step()
-        # outbreak ended early — no E or I left, nothing more will happen
+        infected_now = model._count(InfectionState.I)
+        if d < N_TRAJECTORY_DAYS:
+            trajectory[d] = int(infected_now)
+        # outbreak ended early — no E or I left, remaining days stay at 0
         if (model.day > 1
-                and model.infected_count == 0
+                and infected_now == 0
                 and model._count(InfectionState.E) == 0):
             break
 
     out = model.results()
     row = {c: params[c] for c in INPUT_COLS}
     row.update({c: out[c] for c in OUTPUT_COLS})
+    row.update({col: trajectory[i] for i, col in enumerate(TRAJECTORY_COLS)})
     return row
 
 
 def run_many(
     param_rows: Iterable[Mapping[str, float]],
     out_csv: str | Path,
-    n_days: int = 365,
+    n_days: int = N_TRAJECTORY_DAYS,
     seed_base: int = 0,
 ) -> pd.DataFrame:
     """Run many simulations, write to CSV in the surrogate's column order."""
@@ -94,6 +106,6 @@ def run_many(
     for i, params in enumerate(param_rows):
         rows.append(run_one(params, n_days=n_days, seed=seed_base + i))
 
-    df = pd.DataFrame(rows, columns=INPUT_COLS + OUTPUT_COLS)
+    df = pd.DataFrame(rows, columns=INPUT_COLS + ALL_OUTPUT_COLS)
     df.to_csv(out_csv, index=False)
     return df
