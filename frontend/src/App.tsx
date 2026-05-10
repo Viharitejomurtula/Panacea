@@ -19,7 +19,6 @@ import SimExplainer, { type SobolExplainContext } from "./SimExplainer";
 import "./App.css";
 import {
   DEFAULT_USER_INTERVENTION,
-  FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER,
   INTERVENTION_SLIDERS,
   type SliderKey,
 } from "./interventionSliders";
@@ -28,6 +27,13 @@ import {
   fetchPredict,
   type PredictMcResponse,
 } from "./predict";
+import {
+  CASE_TO_HOSPITALIZATION_FRACTION,
+  estimateOutbreakCosts,
+  formatUsd,
+  HOSPITAL_USD_PER_ADMISSION,
+  VACCINE_USD_PER_DOSE,
+} from "./costEstimate";
 import { VIRUS_LANDING } from "./virusLanding";
 import type { VirusId } from "./viruses";
 import { VIRUS_OPTIONS } from "./viruses";
@@ -334,6 +340,16 @@ export default function App() {
   const mcResult = predictResult?.monte_carlo ?? null;
   const sensitivity = predictResult?.sensitivity ?? null;
 
+  const costEstimate = useMemo(() => {
+    const tc = mcResult?.summary_percentiles?.total_cases;
+    if (!tc) return null;
+    return estimateOutbreakCosts(intervention.vaccination_rate, {
+      p5: tc.p5,
+      p50: tc.p50,
+      p95: tc.p95,
+    });
+  }, [mcResult, intervention.vaccination_rate]);
+
   const sobolExplainContext = useMemo((): SobolExplainContext | null => {
     if (!sensitivity?.parameters?.length) return null;
     const top = sensitivity.parameters[0];
@@ -475,7 +491,23 @@ export default function App() {
               onClick={returnToLanding}
               aria-label="Back to landing page"
             >
-              Entry page
+              <svg
+                className="header-entry-btn__arrow"
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M6 9.35V4.9M3.15 6.05 6 3.2l2.85 2.85"
+                  stroke="currentColor"
+                  strokeWidth="0.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>Entry page</span>
             </button>
           )}
         </header>
@@ -535,11 +567,6 @@ export default function App() {
                   ),
                 )}
               </div>
-              <p className="slider-fixed-param">
-                Symptomatic contact mult. fixed at{" "}
-                <strong>{FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER.toFixed(2)}</strong>{" "}
-                (model default — not adjustable).
-              </p>
               <button
                 type="button"
                 className="btn-reset-sliders"
@@ -698,10 +725,6 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
-                <p className="mc-trajectory-note">
-                  Infected trajectory: {mcResult.trajectory_days} days × p5/p50/p95
-                  returned for charting (console / plot hookup next).
-                </p>
 
                 {sensitivity && (
                   <div className="sobol-block">
@@ -748,6 +771,53 @@ export default function App() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {costEstimate && (
+                  <div className="cost-estimate-block">
+                    <h3 className="mc-subheading">Cost estimate</h3>
+                    <dl className="cost-estimate__dl">
+                      <div className="cost-estimate__row">
+                        <dt>Vaccine doses</dt>
+                        <dd>{costEstimate.dosesPlanned.toLocaleString()}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Vaccine program @ {VACCINE_USD_PER_DOSE.toFixed(4)}
+                          /dose
+                        </dt>
+                        <dd>{formatUsd(costEstimate.vaccineCostUsd)}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Inpatient admissions (~
+                          {(CASE_TO_HOSPITALIZATION_FRACTION * 100).toFixed(0)}%
+                          of MC total cases, p50)
+                        </dt>
+                        <dd>{costEstimate.hospitalizedMedian.toLocaleString()}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Hospital @ {formatUsd(HOSPITAL_USD_PER_ADMISSION)}
+                          /admission (p50)
+                        </dt>
+                        <dd>{formatUsd(costEstimate.hospitalCostMedianUsd)}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>Hospital cost band (p5–p95 cases)</dt>
+                        <dd>
+                          {formatUsd(costEstimate.hospitalCostLowUsd)} –{" "}
+                          {formatUsd(costEstimate.hospitalCostHighUsd)}
+                        </dd>
+                      </div>
+                      <div className="cost-estimate__row cost-estimate__row--total">
+                        <dt>Total (vaccines + p50 hospital)</dt>
+                        <dd>
+                          <strong>{formatUsd(costEstimate.totalMedianUsd)}</strong>
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
                 )}
               </div>
