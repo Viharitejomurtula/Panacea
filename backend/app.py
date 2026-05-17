@@ -263,7 +263,7 @@ def parse_nl(req: ParseRequest) -> dict:
           "intervention_day 30, symptomatic_contact_multiplier 0.3."
     )
     response = _gemini().models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         contents=f"{sys_prompt}\n\nUser: {req.prompt}",
     )
     raw = response.text.strip()
@@ -337,7 +337,7 @@ def chat(req: ChatRequest) -> dict:
         parts.append(f"{m.role.capitalize()}: {m.content}")
     parts.append(f"User: {req.message}\nAssistant:")
     response = _gemini().models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         contents="\n\n".join(parts),
     )
     return {"reply": response.text.strip()}

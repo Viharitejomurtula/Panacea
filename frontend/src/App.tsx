@@ -19,7 +19,6 @@ import SimExplainer, { type SobolExplainContext } from "./SimExplainer";
 import "./App.css";
 import {
   DEFAULT_USER_INTERVENTION,
-  FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER,
   INTERVENTION_SLIDERS,
   type SliderKey,
 } from "./interventionSliders";
@@ -28,6 +27,13 @@ import {
   fetchPredict,
   type PredictMcResponse,
 } from "./predict";
+import {
+  CASE_TO_HOSPITALIZATION_FRACTION,
+  estimateOutbreakCosts,
+  formatUsd,
+  HOSPITAL_USD_PER_ADMISSION,
+  VACCINE_USD_PER_DOSE,
+} from "./costEstimate";
 import { VIRUS_LANDING } from "./virusLanding";
 import type { VirusId } from "./viruses";
 import { VIRUS_OPTIONS } from "./viruses";
@@ -229,16 +235,7 @@ export default function App() {
       : { I: 0, R: 0, D: 0 };
     scriptedTick(pts, WORLD, target, ceiling);
     tickCountRef.current += 1;
-    scriptedTick(
-      pts,
-      WORLD,
-      schedule
-        ? schedule[Math.min(Math.floor(tickCountRef.current / TICKS_PER_DAY), schedule.length - 1)]
-        : { I: 0, R: 0, D: 0 },
-      ceiling,
-    );
     agentsRef.current = [...pts];
-    tickCountRef.current += 1;
 
     const currentDay = Math.floor(tickCountRef.current / TICKS_PER_DAY);
 
@@ -329,10 +326,43 @@ export default function App() {
   const resetSliders = () =>
     setIntervention({ ...DEFAULT_USER_INTERVENTION });
 
+  const [interventionInfoKey, setInterventionInfoKey] =
+    useState<SliderKey | null>(null);
+  const sliderStackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (interventionInfoKey === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setInterventionInfoKey(null);
+    };
+    const onDown = (e: MouseEvent) => {
+      const el = sliderStackRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setInterventionInfoKey(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [interventionInfoKey]);
+
   const introDone = introPhase === "gone";
   const landing = VIRUS_LANDING[virus];
   const mcResult = predictResult?.monte_carlo ?? null;
   const sensitivity = predictResult?.sensitivity ?? null;
+
+  const costEstimate = useMemo(() => {
+    const tc = mcResult?.summary_percentiles?.total_cases;
+    if (!tc) return null;
+    return estimateOutbreakCosts(intervention.vaccination_rate, {
+      p5: tc.p5,
+      p50: tc.p50,
+      p95: tc.p95,
+    });
+  }, [mcResult, intervention.vaccination_rate]);
 
   const sobolExplainContext = useMemo((): SobolExplainContext | null => {
     if (!sensitivity?.parameters?.length) return null;
@@ -475,7 +505,23 @@ export default function App() {
               onClick={returnToLanding}
               aria-label="Back to landing page"
             >
-              Entry page
+              <svg
+                className="header-entry-btn__arrow"
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M6 9.35V4.9M3.15 6.05 6 3.2l2.85 2.85"
+                  stroke="currentColor"
+                  strokeWidth="0.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>Entry page</span>
             </button>
           )}
         </header>
@@ -507,16 +553,64 @@ export default function App() {
 
             <fieldset className="slider-fieldset">
               <legend className="slider-legend">Interventions</legend>
-              <div className="slider-stack">
+              <div ref={sliderStackRef} className="slider-stack">
                 {INTERVENTION_SLIDERS.map(
-                  ({ key, label, min, max, step, format }) => (
+                  ({ key, label, description, min, max, step, format }) => (
                     <div key={key} className="slider-row">
                       <div className="slider-row-header">
-                        <span className="slider-label">{label}</span>
+                        <span className="slider-label-row">
+                          <span className="slider-label">{label}</span>
+                          <button
+                            type="button"
+                            className={`slider-info-btn ${
+                              interventionInfoKey === key
+                                ? "slider-info-btn--open"
+                                : ""
+                            }`}
+                            aria-label={`About ${label}`}
+                            aria-expanded={interventionInfoKey === key}
+                            onClick={() =>
+                              setInterventionInfoKey((k) =>
+                                k === key ? null : key,
+                              )
+                            }
+                          >
+                            <svg
+                              className="slider-info-btn__icon"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 12 12"
+                              aria-hidden
+                            >
+                              <circle
+                                cx="6"
+                                cy="6"
+                                r="4.75"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.1"
+                              />
+                              <circle cx="6" cy="3.35" r="0.55" fill="currentColor" />
+                              <path
+                                fill="currentColor"
+                                d="M5.35 5.15h1.3v4.1h-1.3z"
+                              />
+                            </svg>
+                          </button>
+                        </span>
                         <span className="slider-value">
                           {format(intervention[key])}
                         </span>
                       </div>
+                      {interventionInfoKey === key ? (
+                        <p
+                          className="slider-info-panel"
+                          id={`slider-info-${key}`}
+                          role="tooltip"
+                        >
+                          {description}
+                        </p>
+                      ) : null}
                       <input
                         type="range"
                         className="slider-input"
@@ -530,16 +624,17 @@ export default function App() {
                         aria-valuemin={min}
                         aria-valuemax={max}
                         aria-valuenow={intervention[key]}
+                        aria-label={label}
+                        aria-describedby={
+                          interventionInfoKey === key
+                            ? `slider-info-${key}`
+                            : undefined
+                        }
                       />
                     </div>
                   ),
                 )}
               </div>
-              <p className="slider-fixed-param">
-                Symptomatic contact mult. fixed at{" "}
-                <strong>{FIXED_SYMPTOMATIC_CONTACT_MULTIPLIER.toFixed(2)}</strong>{" "}
-                (model default — not adjustable).
-              </p>
               <button
                 type="button"
                 className="btn-reset-sliders"
@@ -698,10 +793,6 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
-                <p className="mc-trajectory-note">
-                  Infected trajectory: {mcResult.trajectory_days} days × p5/p50/p95
-                  returned for charting (console / plot hookup next).
-                </p>
 
                 {sensitivity && (
                   <div className="sobol-block">
@@ -748,6 +839,53 @@ export default function App() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {costEstimate && (
+                  <div className="cost-estimate-block">
+                    <h3 className="mc-subheading">Cost estimate</h3>
+                    <dl className="cost-estimate__dl">
+                      <div className="cost-estimate__row">
+                        <dt>Vaccine doses</dt>
+                        <dd>{costEstimate.dosesPlanned.toLocaleString()}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Vaccine program @ {VACCINE_USD_PER_DOSE.toFixed(4)}
+                          /dose
+                        </dt>
+                        <dd>{formatUsd(costEstimate.vaccineCostUsd)}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Inpatient admissions (~
+                          {(CASE_TO_HOSPITALIZATION_FRACTION * 100).toFixed(0)}%
+                          of MC total cases, p50)
+                        </dt>
+                        <dd>{costEstimate.hospitalizedMedian.toLocaleString()}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>
+                          Hospital @ {formatUsd(HOSPITAL_USD_PER_ADMISSION)}
+                          /admission (p50)
+                        </dt>
+                        <dd>{formatUsd(costEstimate.hospitalCostMedianUsd)}</dd>
+                      </div>
+                      <div className="cost-estimate__row">
+                        <dt>Hospital cost band (p5–p95 cases)</dt>
+                        <dd>
+                          {formatUsd(costEstimate.hospitalCostLowUsd)} –{" "}
+                          {formatUsd(costEstimate.hospitalCostHighUsd)}
+                        </dd>
+                      </div>
+                      <div className="cost-estimate__row cost-estimate__row--total">
+                        <dt>Total (vaccines + p50 hospital)</dt>
+                        <dd>
+                          <strong>{formatUsd(costEstimate.totalMedianUsd)}</strong>
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
                 )}
               </div>

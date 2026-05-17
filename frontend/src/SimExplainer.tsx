@@ -76,7 +76,7 @@ Strict rules:
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: "gemini-2.5-flash-lite",
     generationConfig: {
       maxOutputTokens: 600,
       temperature: 0.55,
@@ -104,6 +104,7 @@ const SimExplainer: FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [narrating, setNarrating] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const stopAudio = () => {
     if (audioRef.current) {
@@ -111,16 +112,22 @@ const SimExplainer: FC<Props> = ({
       audioRef.current.src = "";
       audioRef.current = null;
     }
+    if (utteranceRef.current) {
+      window.speechSynthesis.cancel();
+      utteranceRef.current = null;
+    }
     setNarrating(false);
   };
 
   const narrate = async () => {
     if (!summary || loading) return;
-    if (audioRef.current) {
+    if (narrating) {
       stopAudio();
       return;
     }
     setNarrating(true);
+
+    // Try ElevenLabs via backend first; fall back to browser Web Speech API.
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
       const res = await fetch(`${base}/narrate`, {
@@ -129,9 +136,14 @@ const SimExplainer: FC<Props> = ({
         body: JSON.stringify({ text: summary }),
       });
       if (!res.ok) {
-        const msg = await res.text();
-        console.error("narrate failed:", msg);
-        setNarrating(false);
+        // Fallback: browser TTS (free, no API key)
+        const u = new SpeechSynthesisUtterance(summary);
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.onend = () => { utteranceRef.current = null; setNarrating(false); };
+        u.onerror = () => { utteranceRef.current = null; setNarrating(false); };
+        utteranceRef.current = u;
+        window.speechSynthesis.speak(u);
         return;
       }
       const blob = await res.blob();

@@ -12,6 +12,15 @@ interface Props {
 const GW = 216;
 const GH = 70;
 
+/** Avoid showing 0.0% when a small absolute count is still >0 (e.g. 1 of 3000 ≈ 0.03%). */
+function pctOfPopulation(count: number, pop: number): string {
+  if (pop <= 0) return "0.0";
+  const p = (count / pop) * 100;
+  if (count === 0 || p === 0) return "0.0";
+  if (p < 0.1) return p.toFixed(2);
+  return p.toFixed(1);
+}
+
 // History is sampled every 8 ticks at 4 ticks/day, i.e. one entry per ~2 days.
 // Convert a history index to its corresponding simulation day for display.
 const TICKS_BETWEEN_SAMPLES = 8;
@@ -41,12 +50,12 @@ const InfectionGraph: FC<Props> = ({
 
   const peak = Math.max(...history, 1);
   const peakIdx = history.indexOf(peak);
-  const peakPct = ((peak / total) * 100).toFixed(1);
+  const peakPct = pctOfPopulation(peak, total);
 
   const idx = Math.min(Math.max(selectedIdx, 0), history.length - 1);
   const selectedInfected = history[idx];
   const selectedDeaths = deathHistory?.[idx] ?? 0;
-  const selectedPct = ((selectedInfected / total) * 100).toFixed(1);
+  const selectedPct = pctOfPopulation(selectedInfected, total);
   const selectedDay = Math.round(idx * DAYS_PER_SAMPLE);
 
   const x = (i: number) =>
