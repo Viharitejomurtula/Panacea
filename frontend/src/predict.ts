@@ -93,7 +93,8 @@ export async function fetchPredict(
     ...(seed !== undefined ? { seed } : {}),
   };
 
-  const res = await fetch("/api/predict", {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  const res = await fetch(`${base}/api/predict`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

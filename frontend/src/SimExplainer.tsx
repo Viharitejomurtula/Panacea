@@ -122,7 +122,8 @@ const SimExplainer: FC<Props> = ({
     }
     setNarrating(true);
     try {
-      const res = await fetch("/narrate", {
+      const base = import.meta.env.VITE_API_URL ?? "";
+      const res = await fetch(`${base}/narrate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: summary }),

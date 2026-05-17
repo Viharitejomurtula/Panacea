@@ -42,8 +42,6 @@ const InfectionGraph: FC<Props> = ({
   const peak = Math.max(...history, 1);
   const peakIdx = history.indexOf(peak);
   const peakPct = ((peak / total) * 100).toFixed(1);
-  const maxDeaths = deathHistory ? Math.max(...deathHistory, 0) : 0;
-  const chartMax = Math.max(peak, maxDeaths, 1);
 
   const idx = Math.min(Math.max(selectedIdx, 0), history.length - 1);
   const selectedInfected = history[idx];
@@ -54,22 +52,25 @@ const InfectionGraph: FC<Props> = ({
   const x = (i: number) =>
     history.length === 1 ? 0 : (i / (history.length - 1)) * GW;
 
+  // Infection line fills the chart (normalized to peak) so the epidemic curve is always visible.
+  // Death line uses the same scale factor so both lines are directly comparable.
+  // Deaths are clamped to chart top in case cumulative deaths exceed peak active infections.
   const pts = history
-    .map((v, i) => `${x(i).toFixed(1)},${(GH - (v / chartMax) * GH * 0.92).toFixed(1)}`)
+    .map((v, i) => `${x(i).toFixed(1)},${(GH - (v / peak) * GH * 0.92).toFixed(1)}`)
     .join(' ');
 
   const deathPts =
     deathHistory && deathHistory.length === history.length
       ? deathHistory
-          .map(
-            (v, i) =>
-              `${x(i).toFixed(1)},${(GH - (v / chartMax) * GH * 0.92).toFixed(1)}`,
-          )
+          .map((v, i) => {
+            const frac = Math.min(v / peak, 1);
+            return `${x(i).toFixed(1)},${(GH - frac * GH * 0.92).toFixed(1)}`;
+          })
           .join(' ')
       : null;
 
   const guideX = x(idx);
-  const guideY = GH - (selectedInfected / chartMax) * GH * 0.92;
+  const guideY = GH - (selectedInfected / total) * GH * 0.92;
 
   return (
     <div className="infection-graph">
