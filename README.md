@@ -1,6 +1,6 @@
 # Panacea
 
-[link to website](https://panacea-40a16.web.app/)
+[https://panacea-40a16.web.app](https://panacea-40a16.web.app/)
 
 ## Overview
 
