@@ -1,6 +1,6 @@
 # Panacea
 
-link to website
+[link to website](https://panacea-40a16.web.app/)
 
 ## Overview
 
@@ -143,6 +143,43 @@ The backend enables CORS for the deployed frontend origin (and `localhost` durin
 
 - The SEIRD ABM makes simplifying epidemiological assumptions (homogeneous-ish mixing within the agent population, fixed disease-preset baselines) — it's built for fast, comparative scenario exploration, not calibrated real-world forecasting.
 - The surrogate's accuracy (MAE 0.043) is bounded by the diversity of the 5,000 LHS training runs; parameter combinations far outside that sampled range may extrapolate poorly.
+
+## Testing
+
+Panacea has automated tests covering the ABM, LHS sampling, the surrogate model, and the backend API, plus a frontend test suite — **40 backend tests and 10 frontend tests, all passing.**
+
+| Suite | What it covers | Command |
+|---|---|---|
+| `tests/test_abm_simulator.py` | Mesa SEIRD model: population conservation, monotonic R/D, reproducibility | `pytest tests/test_abm_simulator.py` |
+| `tests/test_param_sampling.py` | LHS sample shape, bounds, stratified coverage | `pytest tests/test_param_sampling.py` |
+| `tests/test_surrogate.py` | Model loading, output shape/validity, inference latency, and a **regression guard** pinned to the measured 0.043 MAE so future changes can't silently regress accuracy | `pytest tests/test_surrogate.py` |
+| `backend/tests/test_api.py` | `/predict` and `/presets` endpoints: valid requests, validation errors, CORS, Monte Carlo/Sobol path | `pytest backend/tests/test_api.py` |
+| `frontend/src/__tests__/` | Cost estimation and prediction-request logic | `cd frontend && npm run test` |
+
+### Run everything
+
+```bash
+# Backend + ABM/surrogate/sampling tests
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+
+# Frontend tests
+cd frontend
+npm install
+npm run test
+```
+
+### Continuous integration
+
+Both suites run automatically on every push and pull request via GitHub Actions (`.github/workflows/tests.yml`), which also lints the Python code with `ruff` and confirms the frontend still builds. This means a broken test blocks a PR from merging rather than surfacing after deploy.
+
+### Known follow-ups
+
+A few deprecation warnings surface during the run and are tracked for cleanup — none currently fail a test:
+- `backend/app.py`: FastAPI's `@app.on_event("startup")` is deprecated in favor of `lifespan` handlers.
+- `surrogate/sobol_analysis.py`: SALib's `saltelli_sample` is deprecated in favor of `SALib.sample.sobol`.
+
+`torch.load` in `surrogate/predict.py` has already been pinned to `weights_only=True`, closing off the arbitrary-code-execution risk that comes with loading pickled checkpoints under the old default.
 
 ## Frontend (React)
 
