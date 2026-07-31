@@ -22,7 +22,7 @@ import pandas as pd
 
 from .data import split_raw
 from .predict import Surrogate
-from .schema import N_OUTPUTS, N_TRAJECTORY_DAYS, OUTPUT_COLS
+from .schema import N_OUTPUTS, OUTPUT_COLS
 
 
 def metrics(truth: np.ndarray, pred: np.ndarray) -> dict[str, dict[str, float]]:

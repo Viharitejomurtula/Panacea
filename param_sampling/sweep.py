@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pandas as pd

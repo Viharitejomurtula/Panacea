@@ -1,0 +1,7 @@
+[lint.per-file-ignores]
+# dotenv must load before the fastapi/torch/etc imports that read env vars at
+# import time (e.g. GEMINI_API_KEY).
+"backend/app.py" = ["E402"]
+# `I` for InfectionState.Infected matches the SEIR/SEIRD naming convention
+# used throughout the sim and surrounding docs/comments.
+"abm_simulator/simulator.py" = ["E741"]

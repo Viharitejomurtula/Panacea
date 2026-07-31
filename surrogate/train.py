@@ -75,7 +75,7 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     print("=" * 70)
-    print(f"  surrogate training")
+    print("  surrogate training")
     print("=" * 70)
     print(f"  csv:          {args.csv}")
     print(f"  out:          {args.out}")

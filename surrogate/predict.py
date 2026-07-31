@@ -19,13 +19,7 @@ import torch
 
 from .data import Scalers
 from .model import SurrogateMLP
-from .schema import (
-    ALL_OUTPUT_COLS,
-    INPUT_COLS,
-    N_OUTPUTS,
-    N_TRAJECTORY_DAYS,
-    OUTPUT_COLS,
-)
+from .schema import INPUT_COLS, N_OUTPUTS, OUTPUT_COLS
 
 
 class Surrogate:
@@ -38,7 +32,7 @@ class Surrogate:
     def load(cls, run_dir: Path | str, device: str = "cpu") -> "Surrogate":
         run_dir = Path(run_dir)
         model = SurrogateMLP()
-        model.load_state_dict(torch.load(run_dir / "model.pt", map_location=device))
+        model.load_state_dict(torch.load(run_dir / "model.pt", map_location=device, weights_only=True))
         scalers = Scalers.load(run_dir / "scalers.joblib")
         return cls(model, scalers, device)
 

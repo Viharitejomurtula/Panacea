@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
-from .schema import ALL_OUTPUT_COLS, INPUT_COLS, OUTPUT_COLS, TRAJECTORY_COLS
+from .schema import ALL_OUTPUT_COLS, INPUT_COLS, TRAJECTORY_COLS
 
 # Outputs that should be log1p'd before scaling (counts, durations).
 # All trajectory columns are active-infected counts → log1p them too.
